@@ -7,6 +7,7 @@ import json
 
 from pyModbusTCP.client import ModbusClient
 from pymodbus.exceptions import ConnectionException
+from controllers.plant_simulator import PlantSimulator
 
 class ModbusController:
     def __init__(self, app):
@@ -338,73 +339,46 @@ class ModbusController:
 
     def _simulation_loop(self):
         dt = 1.0
-        self.tags['co.temp_carc'] = 25.0
-        self.tags['co.pressao'] = 1.0
-        self.tags['co.freq_ref'] = 20.0
-
+        print("[Simulador] Thread de simulação iniciada.")
+        
+        # Instancia o gêmeo digital com as tags recém-carregadas
+        simulator = PlantSimulator(self.tags)
+        
         while self.is_connected and self.mode == 'simulation':
-            with self.lock:
-                motor_on = self.tags.get('co.habilita', 0) == 1
-                tipo_partida = int(self.tags.get('co.sel_driver', 0))
+            start_time = time.time()
+            try:
+                # 1. Lê inputs (comandos da interface) protegidos pelo Lock
+                with self.lock:
+                    motor_on = self.tags.get('co.habilita', 0) == 1
+                    tipo_partida = int(self.tags.get('co.sel_driver', 0))
+                    
+                    # Atualiza o estado interno do simulador com comandos do usuário (ex: válvulas)
+                    for i in range(1, 7):
+                        tag_valvula = f'co.xv{i}'
+                        simulator.state[tag_valvula] = self.tags.get(tag_valvula, 0)
+                    simulator.state['co.freq_ref'] = self.tags.get('co.freq_ref', 20.0)
 
-                # Define comportamento diferente para cada partida:
-                # 1 = Soft-start, 2 = Inversor, 3 = Direta.
-                if tipo_partida == 1:          # Soft-start
-                    target_rpm = 60.0
-                    aceleracao = 1.5
-                elif tipo_partida == 2:        # Inversor
-                    target_rpm = float(self.tags.get('co.freq_ref', 20.0))
-                    target_rpm = max(0.0, min(60.0, target_rpm))
-                    aceleracao = 3.0
-                else:                          # Direta ou padrão
-                    target_rpm = 60.0
-                    aceleracao = 8.0
+                # 2. Executa a física pesada (FORA DO LOCK para não travar a UI)
+                new_state = simulator.update_physics(dt, motor_on, tipo_partida)
+
+                # 3. Aplica os resultados de volta na memória
+                with self.lock:
+                    self.tags.update(new_state)
+                    # Cria uma cópia segura para mandar para o banco de dados
+                    tags_to_log = self.tags.copy()
+                    
+                # 4. Registra no banco de dados (FORA DO LOCK!)
+                self.app.db.log_reading(tags_to_log)
                 
-                if motor_on:
-                    if self.tags['co.encoder'] < target_rpm - aceleracao:
-                        self.tags['co.encoder'] += aceleracao
-                    elif self.tags['co.encoder'] > target_rpm + aceleracao:
-                        self.tags['co.encoder'] -= aceleracao
-                    else:
-                        self.tags['co.encoder'] = target_rpm + random.uniform(-0.5, 0.5)
+            except Exception as e:
+                # Tratamento Fail-Safe: A thread grita, mas não morre em silêncio.
+                print(f"[Simulador] ERRO CRÍTICO na física ou banco de dados: {e}")
+                import traceback
+                traceback.print_exc()
 
-                    self.tags['co.encoder'] = max(0, min(65.0, self.tags['co.encoder']))
-                    base_power = 4000 * (self.tags['co.encoder'] / 60.0)**2
-                    self.tags['co.ativa_total'] = base_power + random.uniform(-100, 100)
-                    self.tags['co.reativa_total'] = base_power * 0.4 + random.uniform(-50, 50)
-                    self.tags['co.aparente_total'] = (self.tags['co.ativa_total']**2 + self.tags['co.reativa_total']**2)**0.5
-                    self.tags['co.fp_total'] = self.tags['co.ativa_total'] / self.tags['co.aparente_total'] if self.tags['co.aparente_total'] > 0 else 1
-                    self.tags['co.torque'] = (self.tags['co.ativa_total'] / (2 * 3.14159 * self.tags['co.encoder'])) if self.tags['co.encoder'] > 1 else 0
-                    self.tags['co.temp_carc'] = min(95, self.tags['co.temp_carc'] + 0.2 * (self.tags['co.encoder'] / 60.0) - 0.05)
-                    self.tags['co.corrente_media'] = (self.tags['co.aparente_total'] / (220 * (3**0.5))) + random.uniform(-0.1, 0.1)
-                else:
-                    self.tags['co.encoder'] = max(0, self.tags['co.encoder'] - 4.0)
-                    for tag in ['co.ativa_total', 'co.reativa_total', 'co.aparente_total', 'co.torque']:
-                        self.tags[tag] *= 0.9
-                    self.tags['co.corrente_media'] = random.uniform(0.0, 0.05)
-                    self.tags['co.fp_total'] = 1.0
-                    self.tags['co.temp_carc'] = max(25.0, self.tags['co.temp_carc'] - 0.1)
-
-                self.tags['co.tensao_rs'] = 220.0 + random.uniform(-2, 2)
-                self.tags['co.tensao_st'] = 220.0 + random.uniform(-2, 2)
-                self.tags['co.tensao_tr'] = 220.0 + random.uniform(-2, 2)
-                self.tags['co.corrente_r'] = self.tags['co.corrente_media'] + random.uniform(-0.05, 0.05)
-                self.tags['co.corrente_s'] = self.tags['co.corrente_media'] + random.uniform(-0.05, 0.05)
-                self.tags['co.corrente_t'] = self.tags['co.corrente_media'] + random.uniform(-0.05, 0.05)
-                self.tags['co.corrente_n'] = random.uniform(0.0, 0.03)
-                self.tags['co.frequencia'] = self.tags['co.encoder']
-
-                # Lógica de pressão e vazão
-                pressure_gen = (self.tags['co.encoder'] / 60.0) * 1.5
-                pressao_efetiva = max(0, self.tags['co.pressao'] - 1.0)
-                flow_loss = sum(0.8 for i in range(1, 7) if self.tags.get(f'co.xv{i}', 0)) * (pressao_efetiva / 9.0)
-                self.tags['co.pressao'] += (pressure_gen - flow_loss) * dt * 0.2
-                self.tags['co.pressao'] = max(1.0, min(10, self.tags['co.pressao']))
+            # 5. Controle de sincronia (Tick Rate)
+            elapsed = time.time() - start_time
+            if elapsed < dt:
+                time.sleep(dt - elapsed)
                 
-                self.tags['co.fit03'] = (15.0 * pressao_efetiva / 9.0 + random.uniform(-0.5, 0.5)) if self.tags.get('co.xv1', 0) else 0.0
-                self.tags['co.fit02'] = sum((12.0 * pressao_efetiva / 9.0 + random.uniform(-0.5, 0.5)) for i in range(2, 7) if self.tags.get(f'co.xv{i}', 0))
-                
-                self.app.db.log_reading(self.tags)
-            time.sleep(dt)
-
-# --- Gerenciador do Banco de Dados ---
+        print("[Simulador] Thread de simulação encerrada.")

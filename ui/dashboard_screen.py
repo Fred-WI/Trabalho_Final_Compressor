@@ -106,10 +106,10 @@ class DashboardScreen(Screen):
 
         indicators_grid = GridLayout(cols=4, spacing=10, size_hint_y=0.25)
         self.indicators = {
-            'ro.pressao': ValueIndicator(label_text='Pressão', unit='bar', min_val=0, max_val=10, alert_level=7, critical_level=9),
-            'ro.encoder': ValueIndicator(label_text='Rotação', unit='Hz', min_val=0, max_val=70, alert_level=62, critical_level=65),
+            'co.pressao': ValueIndicator(label_text='Pressão', unit='bar', min_val=0, max_val=10, alert_level=7, critical_level=9),
+            'co.encoder': ValueIndicator(label_text='Rotação', unit='Hz', min_val=0, max_val=70, alert_level=62, critical_level=65),
             'vazao_total': ValueIndicator(label_text='Vazão Total', unit='L/min', min_val=0, max_val=100, alert_level=80, critical_level=90),
-            'ro.torque': ValueIndicator(label_text='Torque', unit='N·m', min_val=0, max_val=20, alert_level=15, critical_level=18)
+            'co.torque': ValueIndicator(label_text='Torque', unit='N·m', min_val=0, max_val=20, alert_level=15, critical_level=18)
         }
         for ind in self.indicators.values():
             indicators_grid.add_widget(ind)
@@ -236,12 +236,12 @@ class DashboardScreen(Screen):
         # Atualiza indicadores
         for tag, widget in self.indicators.items():
             if tag == 'vazao_total':
-                widget.current_val = (modbus.read_tag('ro.fit02') + modbus.read_tag('ro.fit03'))
+                widget.current_val = (modbus.read_tag('co.fit02') + modbus.read_tag('co.fit03'))
             else:
                 widget.current_val = modbus.read_tag(tag)
         
-        self.indicator_temp.current_val = modbus.read_tag('ro.temp_carc')
-        self.indicator_corrente.current_val = modbus.read_tag('ro.corrente_media')
+        self.indicator_temp.current_val = modbus.read_tag('co.temp_carc')
+        self.indicator_corrente.current_val = modbus.read_tag('co.corrente_media')
         
         # CORREÇÃO PRINCIPAL: Verifica o estado real do motor
         motor_ligado = modbus.get_motor_status()  # Usa o novo método
