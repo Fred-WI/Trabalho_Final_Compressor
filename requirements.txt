@@ -1,0 +1,6 @@
+kivy
+pyModbusTCP
+pymodbus
+matplotlib
+kivy-garden
+sqlalchemy
