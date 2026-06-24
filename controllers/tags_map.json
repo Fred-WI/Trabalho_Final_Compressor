@@ -1,0 +1,650 @@
+{
+    "co.tipo_motor": {
+        "type": "4X",
+        "address": 708,
+        "bit": "",
+        "tag": "co.tipo_motor",
+        "div": 1,
+        "descricao": "Tipo do motor (1 = Verde ou 2 = Azul)"
+    },
+    "co.pressostato": {
+        "type": "4X",
+        "address": 710,
+        "bit": "",
+        "tag": "co.pressostato",
+        "div": 1,
+        "descricao": "Indicador de Pressão Alta"
+    },
+    "co.xv1": {
+        "type": "4X",
+        "address": 712,
+        "bit": 0,
+        "tag": "co.xv1",
+        "div": 1,
+        "descricao": "Contrrole da Válvula XV-01 (Aberta = 0, Fechada = 1)"
+    },
+    "co.xv2": {
+        "type": "4X",
+        "address": 712,
+        "bit": 1,
+        "tag": "co.xv2",
+        "div": 1,
+        "descricao": "Contrrole da Válvula XV-02 (Aberta = 0, Fechada = 1)"
+    },
+    "co.xv3": {
+        "type": "4X",
+        "address": 712,
+        "bit": 2,
+        "tag": "co.xv3",
+        "div": 1,
+        "descricao": "Contrrole da Válvula XV-03 (Aberta = 0, Fechada = 1)"
+    },
+    "co.xv4": {
+        "type": "4X",
+        "address": 712,
+        "bit": 3,
+        "tag": "co.xv4",
+        "div": 1,
+        "descricao": "Contrrole da Válvula XV-04 (Aberta = 0, Fechada = 1)"
+    },
+    "co.xv5": {
+        "type": "4X",
+        "address": 712,
+        "bit": 4,
+        "tag": "co.xv5",
+        "div": 1,
+        "descricao": "Contrrole da Válvula XV-05 (Aberta = 0, Fechada = 1)"
+    },
+    "co.xv6": {
+        "type": "4X",
+        "address": 712,
+        "bit": 5,
+        "tag": "co.xv6",
+        "div": 1,
+        "descricao": "Contrrole da Válvula XV-06 (Aberta = 0, Fechada = 1)"
+    },
+    "co.pv_pid": {
+        "type": "FP",
+        "address": 1314,
+        "bit": "",
+        "tag": "co.pv_pid",
+        "div": 1,
+        "descricao": "Valor lido da Vazão (PV - Variável de Processo)"
+    },
+    "co.status_pid": {
+        "type": "4X",
+        "address": 722,
+        "bit": "",
+        "tag": "co.status_pid",
+        "div": 1,
+        "descricao": "Status do PID (0 = Automático ou 1 =  Manual)"
+    },
+    "co.temp_r": {
+        "type": "FP",
+        "address": 700,
+        "bit": "",
+        "tag": "co.temp_r",
+        "div": 10,
+        "descricao": "Temperatura Enrolamento R Motor"
+    },
+    "co.temp_s": {
+        "type": "FP",
+        "address": 702,
+        "bit": "",
+        "tag": "co.temp_s",
+        "div": 10,
+        "descricao": "Temperatura Enrolamento S Motor"
+    },
+    "co.temp_t": {
+        "type": "FP",
+        "address": 704,
+        "bit": "",
+        "tag": "co.temp_t",
+        "div": 10,
+        "descricao": "Temperatura Enrolamento T Motor"
+    },
+    "co.temp_carc": {
+        "type": "FP",
+        "address": 706,
+        "bit": "",
+        "tag": "co.temp_carc",
+        "div": 10,
+        "descricao": "Temperatura Carcaça"
+    },
+    "co.pressao": {
+        "type": "FP",
+        "address": 714,
+        "bit": "",
+        "tag": "co.pressao",
+        "div": 1,
+        "descricao": "Pressão no Reservatório (PIT-01)"
+    },
+    "co.fit02": {
+        "type": "FP",
+        "address": 716,
+        "bit": "",
+        "tag": "co.fit02",
+        "div": 1,
+        "descricao": "Vazão no Ramo das Válvulas 02 a 06 (FIT-02)"
+    },
+    "co.fit03": {
+        "type": "FP",
+        "address": 718,
+        "bit": "",
+        "tag": "co.fit03",
+        "div": 1,
+        "descricao": "Vazão no Ramo da Válvula 01 (FIT-03)"
+    },
+    "co.mv_le": {
+        "type": "FP",
+        "address": 814,
+        "bit": "",
+        "tag": "co.mv_le",
+        "div": 1,
+        "descricao": "Valor lido da Variável Manipulada quando em Auto (MV = SP-PV)"
+    },
+    "co.thd_tensao_rn": {
+        "type": "4X",
+        "address": 800,
+        "bit": "",
+        "tag": "co.thd_tensao_rn",
+        "div": 10,
+        "descricao": "Medida THD Tensão entre fase R e Fase S"
+    },
+    "co.thd_tensao_sn": {
+        "type": "4X",
+        "address": 801,
+        "bit": "",
+        "tag": "co.thd_tensao_sn",
+        "div": 10,
+        "descricao": "Medida THD Tensão entre fase S e Fase T"
+    },
+    "co.thd_tensao_tn": {
+        "type": "4X",
+        "address": 802,
+        "bit": "",
+        "tag": "co.thd_tensao_tn",
+        "div": 10,
+        "descricao": "Medida THD Tensão entre fase T e Fase R"
+    },
+    "co.thd_tensao_rs": {
+        "type": "4X",
+        "address": 804,
+        "bit": "",
+        "tag": "co.thd_tensao_rs",
+        "div": 10,
+        "descricao": "Medida THD Tensão entre fase R e Neutro"
+    },
+    "co.thd_tensao_st": {
+        "type": "4X",
+        "address": 805,
+        "bit": "",
+        "tag": "co.thd_tensao_st",
+        "div": 10,
+        "descricao": "Medida THD Tensão entre fase S e Neutro"
+    },
+    "co.thd_tensao_tr": {
+        "type": "4X",
+        "address": 806,
+        "bit": "",
+        "tag": "co.thd_tensao_tr",
+        "div": 10,
+        "descricao": "Medida THD Tensão entre fase T e Neutro"
+    },
+    "co.frequencia": {
+        "type": "4X",
+        "address": 830,
+        "bit": "",
+        "tag": "co.frequencia",
+        "div": 100,
+        "descricao": "Frequência da rede"
+    },
+    "co.corrente_r": {
+        "type": "4X",
+        "address": 840,
+        "bit": "",
+        "tag": "co.corrente_r",
+        "div": 10,
+        "descricao": "Corrente na fase R"
+    },
+    "co.corrente_s": {
+        "type": "4X",
+        "address": 841,
+        "bit": "",
+        "tag": "co.corrente_s",
+        "div": 10,
+        "descricao": "Corrente na fase S"
+    },
+    "co.corrente_t": {
+        "type": "4X",
+        "address": 842,
+        "bit": "",
+        "tag": "co.corrente_t",
+        "div": 10,
+        "descricao": "Corrente na fase T"
+    },
+    "co.corrente_n": {
+        "type": "4X",
+        "address": 843,
+        "bit": "",
+        "tag": "co.corrente_n",
+        "div": 10,
+        "descricao": "Corrente no Neutro"
+    },
+    "co.corrente_media": {
+        "type": "4X",
+        "address": 845,
+        "bit": "",
+        "tag": "co.corrente_media",
+        "div": 10,
+        "descricao": "Corrente Média"
+    },
+    "co.tensao_rs": {
+        "type": "4X",
+        "address": 847,
+        "bit": "",
+        "tag": "co.tensao_rs",
+        "div": 10,
+        "descricao": "ddp entre Fase R e S"
+    },
+    "co.tensao_st": {
+        "type": "4X",
+        "address": 848,
+        "bit": "",
+        "tag": "co.tensao_st",
+        "div": 10,
+        "descricao": "ddp entre Fase S e T"
+    },
+    "co.tensao_tr": {
+        "type": "4X",
+        "address": 849,
+        "bit": "",
+        "tag": "co.tensao_tr",
+        "div": 10,
+        "descricao": "ddp entre Fase T e R"
+    },
+    "co.ativa_r": {
+        "type": "4X",
+        "address": 852,
+        "bit": "",
+        "tag": "co.ativa_r",
+        "div": 1,
+        "descricao": "Medida Potência Ativa Fase R"
+    },
+    "co.ativa_s": {
+        "type": "4X",
+        "address": 853,
+        "bit": "",
+        "tag": "co.ativa_s",
+        "div": 1,
+        "descricao": "Medida Potência Ativa Fase S"
+    },
+    "co.ativa_t": {
+        "type": "4X",
+        "address": 854,
+        "bit": "",
+        "tag": "co.ativa_t",
+        "div": 1,
+        "descricao": "Medida Potência Ativa Fase T"
+    },
+    "co.ativa_total": {
+        "type": "4X",
+        "address": 855,
+        "bit": "",
+        "tag": "co.ativa_total",
+        "div": 1,
+        "descricao": "Medida Potência Ativa Total"
+    },
+    "co.reativa_r": {
+        "type": "4X",
+        "address": 856,
+        "bit": "",
+        "tag": "co.reativa_r",
+        "div": 1,
+        "descricao": "Medida Potência Reativa Fase R"
+    },
+    "co.reativa_s": {
+        "type": "4X",
+        "address": 857,
+        "bit": "",
+        "tag": "co.reativa_s",
+        "div": 1,
+        "descricao": "Medida Potência Reativa Fase S"
+    },
+    "co.reativa_t": {
+        "type": "4X",
+        "address": 858,
+        "bit": "",
+        "tag": "co.reativa_t",
+        "div": 1,
+        "descricao": "Medida Potência Reativa Fase T"
+    },
+    "co.reativa_total": {
+        "type": "4X",
+        "address": 859,
+        "bit": "",
+        "tag": "co.reativa_total",
+        "div": 1,
+        "descricao": "Medida Potência Reativa Total"
+    },
+    "co.aparente_r": {
+        "type": "4X",
+        "address": 860,
+        "bit": "",
+        "tag": "co.aparente_r",
+        "div": 1,
+        "descricao": "Medida Potência Aparente Fase R"
+    },
+    "co.aparente_s": {
+        "type": "4X",
+        "address": 861,
+        "bit": "",
+        "tag": "co.aparente_s",
+        "div": 1,
+        "descricao": "Medida Potência Aparente Fase S"
+    },
+    "co.aparente_t": {
+        "type": "4X",
+        "address": 862,
+        "bit": "",
+        "tag": "co.aparente_t",
+        "div": 1,
+        "descricao": "Medida Potência Aparente Fase T"
+    },
+    "co.aparente_total": {
+        "type": "4X",
+        "address": 863,
+        "bit": "",
+        "tag": "co.aparente_total",
+        "div": 1,
+        "descricao": "Medida Potência Aparente Total"
+    },
+    "co.fp_r": {
+        "type": "4X",
+        "address": 868,
+        "bit": "",
+        "tag": "co.fp_r",
+        "div": 1000,
+        "descricao": "Medida do Fator de Potência Fase R"
+    },
+    "co.fp_s": {
+        "type": "4X",
+        "address": 869,
+        "bit": "",
+        "tag": "co.fp_s",
+        "div": 1000,
+        "descricao": "Medida do Fator de Potência Fase S"
+    },
+    "co.fp_t": {
+        "type": "4X",
+        "address": 870,
+        "bit": "",
+        "tag": "co.fp_t",
+        "div": 1000,
+        "descricao": "Medida do Fator de Potência Fase T"
+    },
+    "co.fp_total": {
+        "type": "4X",
+        "address": 871,
+        "bit": "",
+        "tag": "co.fp_total",
+        "div": 1000,
+        "descricao": "Medida do Fator de Potência Total"
+    },
+    "co.thd_corrente_r": {
+        "type": "4X",
+        "address": 874,
+        "bit": "",
+        "tag": "co.thd_corrente_r",
+        "div": 10,
+        "descricao": "Medida do THD de Corrente da fase R"
+    },
+    "co.thd_corrente_s": {
+        "type": "4X",
+        "address": 875,
+        "bit": "",
+        "tag": "co.thd_corrente_s",
+        "div": 10,
+        "descricao": "Medida do THD de Corrente da fase S"
+    },
+    "co.thd_corrente_t": {
+        "type": "4X",
+        "address": 876,
+        "bit": "",
+        "tag": "co.thd_corrente_t",
+        "div": 10,
+        "descricao": "Medida do THD de Corrente da fase T"
+    },
+    "co.thd_corrente_n": {
+        "type": "4X",
+        "address": 877,
+        "bit": "",
+        "tag": "co.thd_corrente_n",
+        "div": 10,
+        "descricao": "Medida do THD de Corrente do Neutro"
+    },
+    "co.status_ats48": {
+        "type": "4X",
+        "address": 886,
+        "bit": "",
+        "tag": "co.status_ats48",
+        "div": 1,
+        "descricao": "Variável auxiliar do CLP"
+    },
+    "co.status_atv31": {
+        "type": "4X",
+        "address": 888,
+        "bit": "",
+        "tag": "co.status_atv31",
+        "div": 1,
+        "descricao": "Variável auxiliar do CLP"
+    },
+    "co.status_tesys": {
+        "type": "4X",
+        "address": 890,
+        "bit": "",
+        "tag": "co.status_tesys",
+        "div": 1,
+        "descricao": "Variável auxiliar do CLP"
+    },
+    "co.encoder": {
+        "type": "FP",
+        "address": 884,
+        "bit": "",
+        "tag": "co.encoder",
+        "div": 1,
+        "descricao": "Medida da Rotação do Motor (Hz)"
+    },
+    "co.indica_driver": {
+        "type": "4X",
+        "address": 1216,
+        "bit": "",
+        "tag": "co.indica_driver",
+        "div": 1,
+        "descricao": "Indica a partida selecionada (Direta = 0, Soft-start = 1, Inversor = 2)"
+    },
+    "co.ats48": {
+        "type": "4X",
+        "address": 1316,
+        "bit": "",
+        "tag": "co.ats48",
+        "div": 1,
+        "descricao": "Controla partida Soft-start (Liga = 1, Desliga = 0, Reset = 2)"
+    },
+    "co.ats48_acc": {
+        "type": "4X",
+        "address": 1317,
+        "bit": "",
+        "tag": "co.ats48_acc",
+        "div": 1,
+        "descricao": "Define a rampa de aceleração do soft-start e inversor (10s a 60s)"
+    },
+    "co.ats48_dcc": {
+        "type": "4X",
+        "address": 1318,
+        "bit": "",
+        "tag": "co.ats48_dcc",
+        "div": 1,
+        "descricao": "Define a rampa de desaceleração do soft-start e inversor (10s a 60s)"
+    },
+    "co.tesys": {
+        "type": "4X",
+        "address": 1319,
+        "bit": "",
+        "tag": "co.tesys",
+        "div": 1,
+        "descricao": "Controla partida Direta (Liga = 1, Desliga = 0, Reset = 2)"
+    },
+    "co.sel_driver": {
+        "type": "4X",
+        "address": 1324,
+        "bit": "",
+        "tag": "co.sel_driver",
+        "div": 1,
+        "descricao": "Seleciona o Tipo de Partida  (Soft-start = 1, Inversor = 2, Direta = 3)"
+    },
+    "co.sel_pid": {
+        "type": "4X",
+        "address": 1332,
+        "bit": "",
+        "tag": "co.sel_pid",
+        "div": 1,
+        "descricao": "Seleciona o tipo de PID (Automático = 0, Manual = 1)"
+    },
+    "co.demanda_anterior": {
+        "type": "4X",
+        "address": 1204,
+        "bit": "",
+        "tag": "co.demanda_anterior",
+        "div": 10,
+        "descricao": "Medida de Demanda Anterior"
+    },
+    "co.demanda_atual": {
+        "type": "4X",
+        "address": 1205,
+        "bit": "",
+        "tag": "co.demanda_atual",
+        "div": 10,
+        "descricao": "Medida de Demanda Atual"
+    },
+    "co.demanda_media": {
+        "type": "4X",
+        "address": 1206,
+        "bit": "",
+        "tag": "co.demanda_media",
+        "div": 10,
+        "descricao": "Medidade de Demanda Média"
+    },
+    "co.demanda_pico": {
+        "type": "4X",
+        "address": 1207,
+        "bit": "",
+        "tag": "co.demanda_pico",
+        "div": 10,
+        "descricao": "Medidade de Demanda de Pico"
+    },
+    "co.demanda_prevista": {
+        "type": "4X",
+        "address": 1208,
+        "bit": "",
+        "tag": "co.demanda_prevista",
+        "div": 10,
+        "descricao": "Medida de Demanda Prevista"
+    },
+    "co.energia_ativa": {
+        "type": "4X",
+        "address": 1210,
+        "bit": "",
+        "tag": "co.energia_ativa",
+        "div": 1,
+        "descricao": "Medida da Energia Ativa"
+    },
+    "co.energia_reativa": {
+        "type": "4X",
+        "address": 1212,
+        "bit": "",
+        "tag": "co.energia_reativa",
+        "div": 1,
+        "descricao": "Medida da Energia Reativa"
+    },
+    "co.energia_aparente": {
+        "type": "4X",
+        "address": 1214,
+        "bit": "",
+        "tag": "co.energia_aparente",
+        "div": 1,
+        "descricao": "Medida da Energia Aparente"
+    },
+    "co.atv31": {
+        "type": "4X",
+        "address": 1312,
+        "bit": "",
+        "tag": "co.atv31",
+        "div": 1,
+        "descricao": "Controla partida Inversor (Liga = 1, Desliga = 0, Reset = 2)"
+    },
+    "co.atv31_velocidade": {
+        "type": "4X",
+        "address": 1313,
+        "bit": "",
+        "tag": "co.atv31_velocidade",
+        "div": 10,
+        "descricao": "Define a velocidade do Inversor (0 a 60Hz)"
+    },
+    "co.habilita": {
+        "type": "4X",
+        "address": 1328,
+        "bit": 1,
+        "tag": "co.habilita",
+        "div": 1,
+        "descricao": "Indica Motor ligado ou não"
+    },
+    "co.sp_pid": {
+        "type": "FP",
+        "address": 1302,
+        "bit": "",
+        "tag": "co.sp_pid",
+        "div": 1,
+        "descricao": "Define a Vazão no PID (SP- Set Point)"
+    },
+    "co.p": {
+        "type": "FP",
+        "address": 1304,
+        "bit": "",
+        "tag": "co.p",
+        "div": 1,
+        "descricao": "Define o valor do Controle Proporcional"
+    },
+    "co.i": {
+        "type": "FP",
+        "address": 1306,
+        "bit": "",
+        "tag": "co.i",
+        "div": 1,
+        "descricao": "Define o valor do Controle Integral"
+    },
+    "co.d": {
+        "type": "FP",
+        "address": 1308,
+        "bit": "",
+        "tag": "co.d",
+        "div": 1,
+        "descricao": "Define o valor do Controle Derivativo]"
+    },
+    "co.mv_escreve": {
+        "type": "FP",
+        "address": 1310,
+        "bit": "",
+        "tag": "co.mv_escreve",
+        "div": 1,
+        "descricao": "Define o valor da Variável Manipulada (MV em porcentagem)"
+    },
+    "co.torque": {
+        "type": "FP",
+        "address": 1420,
+        "bit": "",
+        "tag": "co.torque",
+        "div": 1,
+        "descricao": "Medida do Torque"
+    }
+}
