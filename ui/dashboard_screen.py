@@ -58,62 +58,165 @@ class DashboardScreen(Screen):
 
         content = BoxLayout(orientation='horizontal', padding=10, spacing=10)
 
-        left_panel = BoxLayout(orientation='vertical', size_hint_x=0.2, spacing=10)
-        nav_buttons = {
-            'Gráficos': ('show_chart', 'graficos'),
-            'Elétrica': ('bolt', 'eletrica'),
-            'Válvulas': ('toggle_on', 'valvulas'),
-            'Histórico': ('history', 'historico'),
-            'Banco de Dados': ('storage', 'bd'),
-            'Sobre': ('info_outline', 'about')
-        }
-        for text, (icon, screen) in nav_buttons.items():
-            btn_container = BoxLayout(orientation='horizontal', size_hint_y=None, height=sp(50))
-            icon_btn = IconButton(icon_name=icon, size_hint_x=None, width=sp(50), on_press=self.navigate)
-            icon_btn.screen_name = screen
-            label_btn = Button(
-                text=text,
-                font_size=sp(18),
-                background_color=(0, 0, 0, 0),
-                text_size=(Window.width * 0.15, None),
-                halign='left',
-                valign='middle',
-                on_press=self.navigate
-            )
-            label_btn.screen_name = screen
-            btn_container.add_widget(icon_btn)
-            btn_container.add_widget(label_btn)
-            left_panel.add_widget(btn_container)
-        content.add_widget(left_panel)
+        # left_panel = BoxLayout(orientation='vertical', size_hint_x=0.2, spacing=10)
+        # nav_buttons = {
+        #     'Gráficos': ('show_chart', 'graficos'),
+        #     'Elétrica': ('bolt', 'eletrica'),
+        #     'Válvulas': ('toggle_on', 'valvulas'),
+        #     'Histórico': ('history', 'historico'),
+        #     'Banco de Dados': ('storage', 'bd'),
+        #     'Sobre': ('info_outline', 'about')
+        # }
+        # for text, (icon, screen) in nav_buttons.items():
+        #     btn_container = BoxLayout(orientation='horizontal', size_hint_y=None, height=sp(50))
+        #     icon_btn = IconButton(icon_name=icon, size_hint_x=None, width=sp(50), on_press=self.navigate)
+        #     icon_btn.screen_name = screen
+        #     label_btn = Button(
+        #         text=text,
+        #         font_size=sp(18),
+        #         background_color=(0, 0, 0, 0),
+        #         text_size=(Window.width * 0.15, None),
+        #         halign='left',
+        #         valign='middle',
+        #         on_press=self.navigate
+        #     )
+        #     label_btn.screen_name = screen
+        #     btn_container.add_widget(icon_btn)
+        #     btn_container.add_widget(label_btn)
+        #     left_panel.add_widget(btn_container)
+        # content.add_widget(left_panel)
 
-        center_panel = BoxLayout(orientation='vertical', size_hint_x=0.5, spacing=10)
-        diagram_placeholder = AnchorLayout(anchor_x='center', anchor_y='center')
+        #center_panel = BoxLayout(orientation='vertical', size_hint_x=0.5, spacing=10)
+        center_panel = BoxLayout(orientation='vertical', size_hint_x=0.62, spacing=10)
+        # diagram_placeholder = AnchorLayout(anchor_x='center', anchor_y='center')
+        # with diagram_placeholder.canvas.before:
+        #     Color(1, 1, 1, 0.9)
+        #     self.diagram_bg = RoundedRectangle(pos=diagram_placeholder.pos, size=diagram_placeholder.size, radius=[10])
+        # diagram_placeholder.bind(pos=lambda i, v: setattr(self.diagram_bg, 'pos', v),
+        #                         size=lambda i, v: setattr(self.diagram_bg, 'size', v))
+        # img_path = 'assets/bancada.png'
+        # if os.path.exists(img_path):
+        #     #diagram_placeholder.add_widget(Image(source=img_path, nocache=True))
+        #     self.bancada_img = Image(
+        #         source=img_path,
+        #         nocache=True,
+        #         allow_stretch=True,
+        #         keep_ratio=True,
+        #         size_hint=(0.9, 0.9)
+        #     )
+        #     diagram_placeholder.add_widget(self.bancada_img)
+            
+        # else:
+        #     diagram_placeholder.add_widget(Label(
+        #         text=f"Diagrama da Bancada\n({img_path} não encontrada)",
+        #         color=(0, 0, 0, 1),
+        #         halign='center'
+        #     ))
+        # center_panel.add_widget(diagram_placeholder)
+
+        # ==========================
+        # DIAGRAMA DA BANCADA
+        # ==========================
+
+        diagram_placeholder = AnchorLayout(
+            anchor_x='center',
+            anchor_y='center',
+            size_hint_y=1
+        )
+
         with diagram_placeholder.canvas.before:
-            Color(1, 1, 1, 0.9)
-            self.diagram_bg = RoundedRectangle(pos=diagram_placeholder.pos, size=diagram_placeholder.size, radius=[10])
-        diagram_placeholder.bind(pos=lambda i, v: setattr(self.diagram_bg, 'pos', v),
-                                size=lambda i, v: setattr(self.diagram_bg, 'size', v))
-        img_path = 'assets/bancada.png'
+            Color(1, 1, 1, 0.95)
+            self.diagram_bg = RoundedRectangle(
+                pos=diagram_placeholder.pos,
+                size=diagram_placeholder.size,
+                radius=[10]
+            )
+
+        diagram_placeholder.bind(
+            pos=lambda i, v: setattr(self.diagram_bg, 'pos', v),
+            size=lambda i, v: setattr(self.diagram_bg, 'size', v)
+        )
+
+        self.diagram_layer = FloatLayout(
+            size_hint=(0.95, 0.95)
+        )
+
+        img_path = os.path.join("assets", "bancada.png")
+
         if os.path.exists(img_path):
-            diagram_placeholder.add_widget(Image(source=img_path, nocache=True))
-        else:
-            diagram_placeholder.add_widget(Label(
-                text=f"Diagrama da Bancada\n({img_path} não encontrada)",
+
+            self.bancada_img = Image(
+                source=img_path,
+                nocache=True,
+                allow_stretch=True,
+                keep_ratio=True,
+                size_hint=(1, 1),
+                pos_hint={"center_x":0.5, "center_y":0.5}
+            )
+
+            self.diagram_layer.add_widget(self.bancada_img)
+
+            # ------------------------
+            # PRESSÃO (PIT-01)
+            # ------------------------
+            self.pressao_label = Label(
+                text="0.00 bar",
+                markup=True,
+                halign="center",
+                valign="middle",
+                font_size=sp(18),
+                bold=True,
                 color=(0, 0, 0, 1),
-                halign='center'
-            ))
+                size_hint=(0.12,0.08),
+                pos_hint={"x":0.065,"y":0.655}
+                #pos_hint={"x":0.063,"y":0.67}
+            )
+
+            # ------------------------
+            # VAZÃO (FIT-03)
+            # ------------------------
+            self.vazao_label = Label(
+                text="0.00 L/min",
+                markup=True,
+                halign="center",
+                valign="middle",
+                font_size=sp(18),
+                bold=True,
+                color=(0, 0, 0, 1),
+                size_hint=(0.15,0.08),
+                pos_hint={"x":0.385,"y":0.71}
+                #pos_hint={"x":0.384,"y":0.73}
+            )
+
+            self.diagram_layer.add_widget(self.pressao_label)
+            self.diagram_layer.add_widget(self.vazao_label)
+
+        else:
+
+            self.diagram_layer.add_widget(
+                Label(
+                    text="Imagem da bancada não encontrada.",
+                    color=(0,0,0,1)
+                )
+            )
+
+        diagram_placeholder.add_widget(self.diagram_layer)
+
         center_panel.add_widget(diagram_placeholder)
 
-        indicators_grid = GridLayout(cols=4, spacing=10, size_hint_y=0.25)
-        self.indicators = {
-            'ro.pressao': ValueIndicator(label_text='Pressão', unit='bar', min_val=0, max_val=10, alert_level=7, critical_level=9),
-            'ro.encoder': ValueIndicator(label_text='Rotação', unit='Hz', min_val=0, max_val=70, alert_level=62, critical_level=65),
-            'vazao_total': ValueIndicator(label_text='Vazão Total', unit='L/min', min_val=0, max_val=100, alert_level=80, critical_level=90),
-            'ro.torque': ValueIndicator(label_text='Torque', unit='N·m', min_val=0, max_val=20, alert_level=15, critical_level=18)
-        }
-        for ind in self.indicators.values():
-            indicators_grid.add_widget(ind)
-        center_panel.add_widget(indicators_grid)
+        # indicators_grid = GridLayout(cols=4, spacing=10, size_hint_y=0.25)
+        # self.indicators = {
+        #     'ro.pressao': ValueIndicator(label_text='Pressão', unit='bar', min_val=0, max_val=10, alert_level=7, critical_level=9),
+        #     'ro.encoder': ValueIndicator(label_text='Rotação', unit='Hz', min_val=0, max_val=70, alert_level=62, critical_level=65),
+        #     'vazao_total': ValueIndicator(label_text='Vazão Total', unit='L/min', min_val=0, max_val=100, alert_level=80, critical_level=90),
+        #     'ro.torque': ValueIndicator(label_text='Torque', unit='N·m', min_val=0, max_val=20, alert_level=15, critical_level=18)
+        # }
+        # for ind in self.indicators.values():
+        #     indicators_grid.add_widget(ind)
+        # center_panel.add_widget(indicators_grid)
+
+        self.indicators = {}
+        
         content.add_widget(center_panel)
 
         right_panel_scroll = ScrollView(size_hint_x=0.3)
@@ -128,14 +231,29 @@ class DashboardScreen(Screen):
         right_panel.add_widget(Label(
             text="Controle do Motor", font_size=sp(20), bold=True, color=CORES['primaria'], size_hint_y=None, height=sp(30)
         ))
-        control_grid = GridLayout(cols=2, rows=2, spacing=10, size_hint_y=None, height=sp(100))
-        self.spinner_motor = Spinner(text='Verde', values=('Verde', 'Azul'), background_color=CORES['primaria'])
-        self.spinner_partida = Spinner(text='Escolha Partida', values=('Direta', 'Soft-start', 'Inversor'), background_color=CORES['primaria'])
+        # control_grid = GridLayout(cols=2, rows=2, spacing=10, size_hint_y=None, height=sp(100))
+        # self.spinner_motor = Spinner(text='Verde', values=('Verde', 'Azul'), background_color=CORES['primaria'])
+        # self.spinner_partida = Spinner(text='Escolha Partida', values=('Direta', 'Soft-start', 'Inversor'), background_color=CORES['primaria'])
+        # self.spinner_partida.bind(text=self.toggle_inverter_controls)
+        # control_grid.add_widget(Label(text='Motor:'))
+        # control_grid.add_widget(self.spinner_motor)
+        # control_grid.add_widget(Label(text='Partida:'))
+        # control_grid.add_widget(self.spinner_partida)
+
+        control_grid = GridLayout(cols=2, rows=1, spacing=10, size_hint_y=None, height=sp(50))
+
+        self.motor_tipo = 'Verde'  # valor fixo interno para não quebrar o comando
+
+        self.spinner_partida = Spinner(
+            text='Escolha Partida',
+            values=('Direta', 'Soft-start', 'Inversor'),
+            background_color=CORES['primaria']
+        )
         self.spinner_partida.bind(text=self.toggle_inverter_controls)
-        control_grid.add_widget(Label(text='Motor:'))
-        control_grid.add_widget(self.spinner_motor)
+
         control_grid.add_widget(Label(text='Partida:'))
         control_grid.add_widget(self.spinner_partida)
+
         right_panel.add_widget(control_grid)
 
         # --- INICIO DA SEÇÃO DO SLIDER ---
@@ -159,29 +277,54 @@ class DashboardScreen(Screen):
         )
         right_panel.add_widget(self.motor_status_label)
 
-        self.indicator_temp = ValueIndicator(
-            label_text="Temp. Carcaça", unit="°C", min_val=20, max_val=100, alert_level=80, critical_level=85, size_hint_y=None, height=sp(90)
-        )
-        self.indicator_corrente = ValueIndicator(
-            label_text="Corrente Média", unit="A", min_val=0, max_val=10, alert_level=7, critical_level=8.5, size_hint_y=None, height=sp(90)
-        )
-        right_panel.add_widget(self.indicator_temp)
-        right_panel.add_widget(self.indicator_corrente)
-
         right_panel.add_widget(Label(
-            text="Controle de Válvulas", font_size=sp(20), bold=True, color=CORES['primaria'], size_hint_y=None, height=sp(30)
+            text='',
+            size_hint_y=None,
+            height=sp(15)
         ))
-        self.valves = {}
-        valves_grid = GridLayout(cols=3, spacing=sp(15), size_hint_y=None, height=sp(180))
-        for i in range(1, 7):
-            valve_box = BoxLayout(orientation='vertical', spacing=5)
-            switch = Switch(active=False, size_hint_y=None, height=sp(48))
-            switch.bind(active=lambda instance, value, index=i: App.get_running_app().modbus.write_tag(f'co.xv{index}', 1 if value else 0))
-            valve_box.add_widget(Label(text=f"XV-0{i}", font_size=sp(14), size_hint_y=None, height=sp(20)))
-            valve_box.add_widget(switch)
-            valves_grid.add_widget(valve_box)
-            self.valves[i] = switch
-        right_panel.add_widget(valves_grid)
+
+        menu_buttons = {
+            'Gráficos': ('show_chart', 'graficos'),
+            'Elétrica': ('bolt', 'eletrica'),
+            'Válvulas': ('toggle_on', 'valvulas'),
+            'Histórico de eventos': ('history', 'historico'),
+            'Banco de Dados': ('storage', 'bd'),
+            'Sobre': ('info_outline', 'about')
+        }
+
+        for texto, (_, tela) in menu_buttons.items():
+            btn = HoverButton(
+                text=texto,
+                size_hint_y=None,
+                height=sp(50),
+                on_press=self.navigate
+            )
+            btn.screen_name = tela
+            right_panel.add_widget(btn)
+
+        # self.indicator_temp = ValueIndicator(
+        #     label_text="Temp. Carcaça", unit="°C", min_val=20, max_val=100, alert_level=80, critical_level=85, size_hint_y=None, height=sp(90)
+        # )
+        # self.indicator_corrente = ValueIndicator(
+        #     label_text="Corrente Média", unit="A", min_val=0, max_val=10, alert_level=7, critical_level=8.5, size_hint_y=None, height=sp(90)
+        # )
+        # right_panel.add_widget(self.indicator_temp)
+        # right_panel.add_widget(self.indicator_corrente)
+
+        # right_panel.add_widget(Label(
+        #     text="Controle de Válvulas", font_size=sp(20), bold=True, color=CORES['primaria'], size_hint_y=None, height=sp(30)
+        # ))
+        # self.valves = {}
+        # valves_grid = GridLayout(cols=3, spacing=sp(15), size_hint_y=None, height=sp(180))
+        # for i in range(1, 7):
+        #     valve_box = BoxLayout(orientation='vertical', spacing=5)
+        #     switch = Switch(active=False, size_hint_y=None, height=sp(48))
+        #     switch.bind(active=lambda instance, value, index=i: App.get_running_app().modbus.write_tag(f'co.xv{index}', 1 if value else 0))
+        #     valve_box.add_widget(Label(text=f"XV-0{i}", font_size=sp(14), size_hint_y=None, height=sp(20)))
+        #     valve_box.add_widget(switch)
+        #     valves_grid.add_widget(valve_box)
+        #     self.valves[i] = switch
+        # right_panel.add_widget(valves_grid)
 
         right_panel_scroll.add_widget(right_panel)
         content.add_widget(right_panel_scroll)
@@ -232,16 +375,22 @@ class DashboardScreen(Screen):
 
         self.connection_status.text = f"[font=MaterialIcons]cloud_done[/font] CONECTADO ({modbus.mode})"
         self.connection_status.color = CORES['sucesso']
+
+        pressao = modbus.read_tag("ro.pressao")
+        vazao = modbus.read_tag("ro.fit02")
+
+        self.pressao_label.text = f"{pressao:.2f} bar"
+        self.vazao_label.text = f"{vazao:.2f} L/min"
         
         # Atualiza indicadores
         for tag, widget in self.indicators.items():
             if tag == 'vazao_total':
-                widget.current_val = (modbus.read_tag('ro.fit02') + modbus.read_tag('ro.fit03'))
+                widget.current_val = (modbus.read_tag('ro.fit02'))
             else:
                 widget.current_val = modbus.read_tag(tag)
         
-        self.indicator_temp.current_val = modbus.read_tag('ro.temp_carc')
-        self.indicator_corrente.current_val = modbus.read_tag('ro.corrente_media')
+        #self.indicator_temp.current_val = modbus.read_tag('ro.temp_carc')
+        #self.indicator_corrente.current_val = modbus.read_tag('ro.corrente_media')
         
         # CORREÇÃO PRINCIPAL: Verifica o estado real do motor
         motor_ligado = modbus.get_motor_status()  # Usa o novo método
@@ -267,10 +416,10 @@ class DashboardScreen(Screen):
             self.motor_status_label.color = CORES['erro']
         
         # Atualiza estado das válvulas
-        for i, switch in self.valves.items():
-            state = modbus.read_tag(f'co.xv{i}') == 1
-            if switch.active != state:
-                switch.active = state
+        #for i, switch in self.valves.items():
+        #    state = modbus.read_tag(f'co.xv{i}') == 1
+        #    if switch.active != state:
+        #        switch.active = state
 
     def handle_motor_toggle(self, instance):
         """Versão corrigida do handle_motor_toggle"""
@@ -293,10 +442,15 @@ class DashboardScreen(Screen):
                 
             # Confirmação para ligar
             content = BoxLayout(orientation='vertical', spacing=15, padding=15)
+            # content.add_widget(Label(text=f'Tem certeza que deseja LIGAR o motor?\n'
+            #                             f'Tipo de Partida: {self.spinner_partida.text}\n'
+            #                             f'Motor: {self.spinner_motor.text}', 
+            #                     font_size=sp(16)))
+
             content.add_widget(Label(text=f'Tem certeza que deseja LIGAR o motor?\n'
-                                        f'Tipo de Partida: {self.spinner_partida.text}\n'
-                                        f'Motor: {self.spinner_motor.text}', 
-                                font_size=sp(16)))
+                            f'Tipo de Partida: {self.spinner_partida.text}', 
+                    font_size=sp(16)))
+            
             btn_box = BoxLayout(spacing=10, size_hint_y=None, height=sp(40))
             popup = Popup(title='Confirmação de Ação', content=content, size_hint=(None, None), 
                         size=(sp(400), sp(200)), title_align='center')
@@ -329,7 +483,7 @@ class DashboardScreen(Screen):
             motor_map = {'Verde': 1, 'Azul': 2}
 
             app.modbus.write_tag('co.sel_driver', partida_map.get(self.spinner_partida.text, 0))
-            app.modbus.write_tag('co.tipo_motor', motor_map.get(self.spinner_motor.text, 0))
+            app.modbus.write_tag('co.tipo_motor', motor_map.get(self.motor_tipo, 1))
 
             # Se for partida por inversor, envia também a referência de frequência.
             if self.spinner_partida.text == 'Inversor':

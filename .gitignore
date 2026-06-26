@@ -17,3 +17,6 @@ desktop.ini
 *.rar
 *.zip
 compressor_data*.db
+*_v*.py
+*_v*.png
+*_v*.svg
