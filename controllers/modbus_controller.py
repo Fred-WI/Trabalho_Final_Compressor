@@ -278,7 +278,14 @@ class ModbusController:
         except Exception as e:
             print(f"Erro de escrita Modbus: {e}"); self.app.db.log_event('erro', f"Falha de escrita em {tag}")
 
-
+    def troca_partida(self, tipo_partida):
+        if self.get_motor_status():
+            return False
+        
+        with self.lock:
+            self.client.write_single_register(1324,tipo_partida)
+        return True
+    
     def _converter_float32(self, regs):
         """Converte dois registradores Modbus de 16 bits em float32.
 

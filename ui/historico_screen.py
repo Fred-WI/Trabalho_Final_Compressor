@@ -38,12 +38,21 @@ class HistoricoScreen(BaseScreen):
         super().__init__(**kwargs); self.name = 'historico'; self.add_header("Histórico de Eventos")
         controls = BoxLayout(size_hint_y=None, height=sp(50), padding=10, spacing=10)
         self.spinner_type = Spinner(text='Todos', values=('Todos', 'Sistema', 'Erro', 'Comando', 'Alerta'), background_color=CORES['primaria']); self.spinner_type.bind(text=self.load_events)
-        controls.add_widget(Label(text="Filtrar por tipo:")); controls.add_widget(self.spinner_type); self.root_layout.add_widget(controls)
-        self.scroll_view = ScrollView(); self.grid = GridLayout(cols=1, size_hint_y=None, spacing=5, padding=5); self.grid.bind(minimum_height=self.grid.setter('height'))
-        self.scroll_view.add_widget(self.grid); self.root_layout.add_widget(self.scroll_view)
+        controls.add_widget(Label(text="Filtrar por tipo:"))
+        controls.add_widget(self.spinner_type)
+        self.root_layout.add_widget(controls)
+        self.scroll_view = ScrollView()
+        self.grid = GridLayout(cols=1, size_hint_y=None, spacing=5, padding=5)
+        self.grid.bind(minimum_height=self.grid.setter('height'))
+        self.scroll_view.add_widget(self.grid)
+        self.root_layout.add_widget(self.scroll_view)
     def on_enter(self, *args): self.load_events()
+    
     def load_events(self, *args):
-        self.grid.clear_widgets(); events = App.get_running_app().db.query_events(event_type=self.spinner_type.text, limit=200)
+        self.grid.clear_widgets()
+
+        events = App.get_running_app().db.query_events(event_type=self.spinner_type.text, limit=200)
+        
         for ts, etype, desc in events:
             color = {'erro': CORES['erro'], 'sistema': CORES['info'], 'comando': CORES['alerta'], 'alerta': CORES['alerta']}.get(etype, CORES['texto'])
             ts_obj = datetime.strptime(ts.split('.')[0], '%Y-%m-%d %H:%M:%S')

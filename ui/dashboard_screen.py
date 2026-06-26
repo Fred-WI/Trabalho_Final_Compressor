@@ -191,6 +191,36 @@ class DashboardScreen(Screen):
             self.diagram_layer.add_widget(self.pressao_label)
             self.diagram_layer.add_widget(self.vazao_label)
 
+            # ------------------------
+            # BOTÕES INVISÍVEIS DAS VÁLVULAS
+            # ------------------------
+            self.valve_buttons = {}
+
+            valve_positions = {
+                2: {'x': 0.85, 'y': 0.677},
+                3: {'x': 0.85, 'y': 0.564},
+                4: {'x': 0.85, 'y': 0.451},
+                5: {'x': 0.85, 'y': 0.337},
+                6: {'x': 0.85, 'y': 0.225},
+            }
+
+            for valve_id, pos in valve_positions.items():
+                btn = Button(
+                    text='OFF',
+                    font_size=sp(11),
+                    bold=True,
+                    color=(1, 1, 1, 1),
+                    background_normal='',
+                    background_down='',
+                    background_color=(0.35, 0.35, 0.35, 1),
+                    size_hint=(0.055, 0.035),
+                    pos_hint=pos
+                )
+                btn.valve_id = valve_id
+                btn.bind(on_press=self.toggle_valve_from_diagram)
+                self.valve_buttons[valve_id] = btn
+                self.diagram_layer.add_widget(btn)
+
         else:
 
             self.diagram_layer.add_widget(
@@ -340,6 +370,16 @@ class DashboardScreen(Screen):
         else:
             self.inverter_controls.height = 0
             self.inverter_controls.opacity = 0
+            pass
+        partida_map = {'Direta': 3, 'Soft-start': 1, 'Inversor': 2}
+        App.get_running_app().modbus.troca_partida(partida_map[text])
+        pass
+
+    # def seleciona_aceleracao()
+    # def seleciona_desaceleracao()
+    # def seleciona_frequencia_inversor()
+        
+        
             
     def on_frequency_change(self, instance, value):
         """Chamado quando o valor do slider muda.
@@ -356,6 +396,26 @@ class DashboardScreen(Screen):
         if hasattr(app, 'modbus') and app.modbus and app.modbus.is_connected:
             if self.spinner_partida.text == 'Inversor':
                 app.modbus.write_tag('co.freq_ref', self.inverter_frequency)
+
+
+    def toggle_valve_from_diagram(self, instance):
+        app = App.get_running_app()
+        modbus = getattr(app, 'modbus', None)
+
+        if not modbus or not modbus.is_connected:
+            self.show_error_popup('Não há conexão com o CLP!')
+            return
+
+        valve_id = instance.valve_id
+        tag = f'co.xv{valve_id}'
+
+        estado_atual = modbus.read_tag(tag)
+        novo_estado = 0 if estado_atual == 1 else 1
+
+        modbus.write_tag(tag, novo_estado)
+
+        estado_txt = 'ABERTA' if novo_estado == 1 else 'FECHADA'
+        app.db.log_event('comando', f'Válvula XV-{valve_id} {estado_txt} pelo sinótico.')           
 
     def update_ui(self, dt):
         """Versão corrigida do update_ui com lógica de botões correta"""
@@ -381,6 +441,16 @@ class DashboardScreen(Screen):
 
         self.pressao_label.text = f"{pressao:.2f} bar"
         self.vazao_label.text = f"{vazao:.2f} L/min"
+
+        for valve_id, btn in self.valve_buttons.items():
+            state = modbus.read_tag(f'co.xv{valve_id}') == 1
+
+            if state:
+                btn.text = "ON"
+                btn.background_color = (0.10, 0.35, 0.60, 1)   # azul
+            else:
+                btn.text = "OFF"
+                btn.background_color = (0.35, 0.35, 0.35, 1)   # cinza
         
         # Atualiza indicadores
         for tag, widget in self.indicators.items():
@@ -420,6 +490,17 @@ class DashboardScreen(Screen):
         #    state = modbus.read_tag(f'co.xv{i}') == 1
         #    if switch.active != state:
         #        switch.active = state
+
+        # Atualiza estado dos botões das válvulas
+    # for valve_id, btn in self.valve_buttons.items():
+    #     state = modbus.read_tag(f'co.xv{valve_id}') == 1
+
+    #     if state:
+    #         btn.text = "ON"
+    #         btn.background_color = (0.10, 0.35, 0.60, 1)   # azul
+    #     else:
+    #         btn.text = "OFF"
+    #         btn.background_color = (0.35, 0.35, 0.35, 1)   # cinza
 
     def handle_motor_toggle(self, instance):
         """Versão corrigida do handle_motor_toggle"""
@@ -479,11 +560,11 @@ class DashboardScreen(Screen):
         app = App.get_running_app()
 
         if action == 'LIGAR':
-            partida_map = {'Direta': 3, 'Soft-start': 1, 'Inversor': 2}
-            motor_map = {'Verde': 1, 'Azul': 2}
+            # partida_map = {'Direta': 3, 'Soft-start': 1, 'Inversor': 2}
+            # motor_map = {'Verde': 1, 'Azul': 2}
 
-            app.modbus.write_tag('co.sel_driver', partida_map.get(self.spinner_partida.text, 0))
-            app.modbus.write_tag('co.tipo_motor', motor_map.get(self.motor_tipo, 1))
+            # app.modbus.write_tag('co.sel_driver', partida_map.get(self.spinner_partida.text, 0))
+            # app.modbus.write_tag('co.tipo_motor', motor_map.get(self.motor_tipo, 1))
 
             # Se for partida por inversor, envia também a referência de frequência.
             if self.spinner_partida.text == 'Inversor':
@@ -524,7 +605,7 @@ class DashboardScreen(Screen):
                 
             app.modbus.comandoMotor(1)
                 
-        else:  # DESLIGAR
+        else:  
             app.modbus.comandoMotor(0)
 
             # Só escreve nos registradores reais se houver cliente Modbus real.
