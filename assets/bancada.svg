@@ -1,0 +1,159 @@
+<svg width="1200" height="750" viewBox="0 0 1200 750" xmlns="http://www.w3.org/2000/svg" style="background-color: #ffffff; font-family: 'Segoe UI', Arial, sans-serif;">
+  <style>
+    .tubulacao {
+      fill: none;
+      stroke: #9370DB;
+      stroke-width: 10;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+    .componente-corpo {
+      fill: #E6E6FA;
+      stroke: #4B0082;
+      stroke-width: 3;
+    }
+    .motor {
+      fill: #8A2BE2;
+      stroke: #4B0082;
+      stroke-width: 3;
+    }
+    .atuador-valvula {
+      fill: #9932CC;
+      stroke: #4B0082;
+      stroke-width: 2;
+    }
+    .texto-label {
+      font-size: 18px;
+      font-weight: bold;
+      fill: #2F4F4F;
+      text-anchor: middle;
+    }
+    .texto-saida {
+      font-size: 18px;
+      font-weight: bold;
+      fill: #2F4F4F;
+      text-anchor: start;
+    }
+    .display-tela {
+      fill: #D8BFD8;
+      stroke: #4B0082;
+      stroke-width: 1;
+    }
+    .fio-sensor {
+        fill: none;
+        stroke: #4B0082;
+        stroke-width: 2;
+    }
+  </style>
+  <defs>
+    <g id="valvula-solenoide">
+      <rect class="componente-corpo" x="-35" y="-20" width="70" height="40" rx="10" />
+      <rect class="atuador-valvula" x="-20" y="-45" width="40" height="25" rx="8" />
+    </g>
+    <g id="display-instrumento">
+      <rect class="componente-corpo" x="-80" y="-30" width="160" height="60" rx="10" />
+      <rect class="display-tela" x="-70" y="-20" width="140" height="40" rx="8" />
+    </g>
+    <g id="valvula-fluxo">
+      <path d="M -30 0 L 30 0 M 0 -25 L 0 25" stroke="#4B0082" stroke-width="5"/>
+      <path d="M -30 -20 L 0 0 L -30 20 Z" class="componente-corpo"/>
+      <path d="M 30 -20 L 0 0 L 30 20 Z" class="componente-corpo"/>
+      <rect class="atuador-valvula" x="-15" y="-50" width="30" height="25" rx="8"/>
+    </g>
+    <g id="sensor-instrumento">
+        <path d="M 0 0 v -30" class="componente-corpo"/>
+        <rect x="-25" y="-50" width="50" height="20" class="componente-corpo" rx="8"/>
+        <path d="M 0 -50 C 0 -70, 20 -70, 20 -90" class="fio-sensor"/>
+        <rect x="10" y="-105" width="20" height="15" class="atuador-valvula" rx="5"/>
+    </g>
+  </defs>
+
+  <!-- Deslocamento de todo o layout -->
+  <g transform="translate(0,50)">
+
+    <path class="tubulacao" d="
+      M 220, 400 H 260
+      M 380, 360 V 250
+      M 380, 250 H 150
+      M 380, 250 V 150 H 550
+      M 550, 150 V 80 H 1050
+      M 550, 150 V 650
+      M 550, 250 H 1050
+      M 550, 350 H 1050
+      M 550, 450 H 1050
+      M 550, 550 H 1050
+      M 550, 650 H 1050
+      M 380, 590 V 650
+    "/>
+    <g>
+      <rect class="motor" x="20" y="360" width="200" height="80" rx="12"/>
+      <rect class="motor" x="20" y="345" width="60" height="110" rx="12" />
+      <text class="texto-label" x="120" y="475">MOTOR</text>
+    </g>
+    <g>
+      <ellipse class="componente-corpo" cx="380" cy="400" rx="120" ry="40" />
+      <rect class="componente-corpo" x="260" y="400" width="240" height="150" />
+      <ellipse class="componente-corpo" cx="380" cy="550" rx="120" ry="40" pathLength="1" style="stroke-dasharray: 0.5 0.5;"/>
+      <text class="texto-label" x="380" y="470">TQ-01</text>
+      <text class="texto-label" x="380" y="495" style="font-size: 16px; font-weight: normal;">RESERVATÓRIO</text>
+    </g>
+    <g>
+        <rect class="componente-corpo" x="365" y="620" width="30" height="30" rx="8" />
+        <text class="texto-label" x="450" y="640">V-1 DRENO</text>
+    </g>
+    <g transform="translate(150, 250)">
+      <use href="#display-instrumento"/>
+      <text class="texto-label" y="5">PIT-01</text>
+    </g>
+    <g transform="translate(900, 80)"> <use href="#sensor-instrumento"/> </g>
+    <g transform="translate(900, 30)">
+      <use href="#display-instrumento"/>
+      <text class="texto-label" y="5">FIT-02</text>
+    </g>
+    <g transform="translate(700, 80)">
+      <use href="#valvula-fluxo"/>
+      <text class="texto-label" y="-60">FV-01</text>
+    </g>
+    <g transform="translate(1050, 80)">
+      <use href="#valvula-solenoide" />
+      <path class="tubulacao" d="M 35 0 h 40"/>
+      <text class="texto-label" y="-55">XV-1</text>
+      <text class="texto-saida" x="80" y="5">ATM</text>
+    </g>
+    <g transform="translate(550, 200)">
+      <use href="#display-instrumento"/>
+      <text class="texto-label" y="5">FIT-03</text>
+    </g>
+    <g transform="translate(1050, 250)">
+      <use href="#valvula-solenoide" />
+      <path class="tubulacao" d="M 35 0 h 40"/>
+      <text class="texto-label" y="-55">XV-2</text>
+      <text class="texto-saida" x="80" y="5">ATM</text>
+    </g>
+    <g transform="translate(1050, 350)">
+      <use href="#valvula-solenoide" />
+      <path class="tubulacao" d="M 35 0 h 40"/>
+      <text class="texto-label" y="-55">XV-3</text>
+      <text class="texto-saida" x="80" y="5">ATM</text>
+    </g>
+    <g transform="translate(1050, 450)">
+      <use href="#valvula-solenoide" />
+      <path class="tubulacao" d="M 35 0 h 40"/>
+      <text class="texto-label" y="-55">XV-4</text>
+      <text class="texto-saida" x="80" y="5">ATM</text>
+    </g>
+    <g transform="translate(1050, 550)">
+      <use href="#valvula-solenoide" />
+      <path class="tubulacao" d="M 35 0 h 40"/>
+      <text class="texto-label" y="-55">XV-5</text>
+      <text class="texto-saida" x="80" y="5">ATM</text>
+    </g>
+    <g transform="translate(1050, 650)">
+      <use href="#valvula-solenoide" />
+      <path class="tubulacao" d="M 35 0 h 40"/>
+      <text class="texto-label" y="-55">XV-6</text>
+      <text class="texto-saida" x="80" y="5">ATM</text>
+    </g>
+
+  </g> <!-- fim do translate -->
+</svg>
