@@ -15,29 +15,29 @@ class ModbusController:
 
     def _build_tag_map(self):
         self.tags_addrs = {
-            "ro.encoder": {"type":"FP","address":884,"div":1,"unit":"Hz","db_col":"rotacao"}, 
-            "ro.torque": {"type":"FP","address":1420,"div":1,"unit":"N·m","db_col":"torque"},
-            "ro.pressostato": {"type":"4X","address":710,"div":1,"unit":""}, 
-            "ro.temp_carc": {"type":"FP","address":706,"div":10,"unit":"°C","db_col":"temp_carc"},
-            "ro.temp_r": {"type":"FP","address":700,"div":10,"unit":"°C"}, 
-            "ro.temp_s": {"type":"FP","address":702,"div":10,"unit":"°C"},
-            "ro.temp_t": {"type":"FP","address":704,"div":10,"unit":"°C"}, 
-            "ro.corrente_r": {"type":"4X","address":840,"div":10,"unit":"A"},
-            "ro.corrente_s": {"type":"4X","address":841,"div":10,"unit":"A"}, 
-            "ro.corrente_t": {"type":"4X","address":842,"div":10,"unit":"A"},
-            "ro.corrente_n": {"type":"4X","address":843,"div":10,"unit":"A"}, 
-            "ro.fit02": {"type":"FP","address":716,"div":1,"unit":"L/min","db_col":"vazao_fit02"},
-            "ro.fit03": {"type":"FP","address":718,"div":1,"unit":"L/min","db_col":"vazao_fit03"}, 
-            "ro.tensao_rs": {"type":"4X","address":847,"div":10,"unit":"V"},
-            "ro.tensao_st": {"type":"4X","address":848,"div":10,"unit":"V"}, 
-            "ro.tensao_tr": {"type":"4X","address":849,"div":10,"unit":"V"},
-            "ro.corrente_media": {"type":"4X","address":845,"div":10,"unit":"A"}, 
-            "ro.pressao": {"type":"FP","address":714,"div":1,"unit":"bar","db_col":"pressao"},
-            'ro.ativa_total': {'type':'4X','address':855,'div':1,'unit':'W',"db_col":"pot_ativa"}, 
-            'ro.reativa_total': {'type':'4X','address':859,'div':1,'unit':'VAR',"db_col":"pot_reativa"},
-            'ro.aparente_total': {'type':'4X','address':863,'div':1,'unit':'VA',"db_col":"pot_aparente"}, 
-            'ro.fp_total': {'type':'4X','address':871,'div':1000,'unit':''},
-            'ro.frequencia': {'type':'4X','address':830,'div':100,'unit':'Hz'}, 
+            "co.encoder": {"type":"FP","address":884,"div":1,"unit":"Hz","db_col":"rotacao"}, 
+            "co.torque": {"type":"FP","address":1420,"div":1,"unit":"N·m","db_col":"torque"},
+            "co.pressostato": {"type":"4X","address":710,"div":1,"unit":""}, 
+            "co.temp_carc": {"type":"FP","address":706,"div":10,"unit":"°C","db_col":"temp_carc"},
+            "co.temp_r": {"type":"FP","address":700,"div":10,"unit":"°C"}, 
+            "co.temp_s": {"type":"FP","address":702,"div":10,"unit":"°C"},
+            "co.temp_t": {"type":"FP","address":704,"div":10,"unit":"°C"}, 
+            "co.corrente_r": {"type":"4X","address":840,"div":10,"unit":"A"},
+            "co.corrente_s": {"type":"4X","address":841,"div":10,"unit":"A"}, 
+            "co.corrente_t": {"type":"4X","address":842,"div":10,"unit":"A"},
+            "co.corrente_n": {"type":"4X","address":843,"div":10,"unit":"A"}, 
+            "co.fit02": {"type":"FP","address":716,"div":1,"unit":"L/min","db_col":"vazao_fit02"},
+            "co.fit03": {"type":"FP","address":718,"div":1,"unit":"L/min","db_col":"vazao_fit03"}, 
+            "co.tensao_rs": {"type":"4X","address":847,"div":10,"unit":"V"},
+            "co.tensao_st": {"type":"4X","address":848,"div":10,"unit":"V"}, 
+            "co.tensao_tr": {"type":"4X","address":849,"div":10,"unit":"V"},
+            "co.corrente_media": {"type":"4X","address":845,"div":10,"unit":"A"}, 
+            "co.pressao": {"type":"FP","address":714,"div":1,"unit":"bar","db_col":"pressao"},
+            'co.ativa_total': {'type':'4X','address':855,'div':1,'unit':'W',"db_col":"pot_ativa"}, 
+            'co.reativa_total': {'type':'4X','address':859,'div':1,'unit':'VAR',"db_col":"pot_reativa"},
+            'co.aparente_total': {'type':'4X','address':863,'div':1,'unit':'VA',"db_col":"pot_aparente"}, 
+            'co.fp_total': {'type':'4X','address':871,'div':1000,'unit':''},
+            'co.frequencia': {'type':'4X','address':830,'div':100,'unit':'Hz'}, 
             "co.xv1": {"type":"4X","address":712,"bit":0}, "co.xv2": {"type":"4X","address":712,"bit":1},
             "co.xv3": {"type":"4X","address":712,"bit":2}, "co.xv4": {"type":"4X","address":712,"bit":3},
             "co.xv5": {"type":"4X","address":712,"bit":4}, "co.xv6": {"type":"4X","address":712,"bit":5},
@@ -117,7 +117,7 @@ class ModbusController:
                     self.tags['co.sel_driver'] = 3.0
 
                 # Se for inversor e a referência ainda estiver zerada,
-                # usa 20 Hz como valor inicial para o motor sair do zero.
+                # usa 20 Hz como valor inicial para o motor sair do zeco.
                 if self.tags.get('co.sel_driver', 0) == 2 and self.tags.get('co.freq_ref', 0) == 0:
                     self.tags['co.freq_ref'] = 20.0
 
@@ -345,8 +345,8 @@ class ModbusController:
 
     def _simulation_loop(self):
         dt = 1.0
-        self.tags['ro.temp_carc'] = 25.0
-        self.tags['ro.pressao'] = 1.0
+        self.tags['co.temp_carc'] = 25.0
+        self.tags['co.pressao'] = 1.0
         self.tags['co.freq_ref'] = 20.0
 
         while self.is_connected and self.mode == 'simulation':
@@ -368,48 +368,48 @@ class ModbusController:
                     aceleracao = 8.0
                 
                 if motor_on:
-                    if self.tags['ro.encoder'] < target_rpm - aceleracao:
-                        self.tags['ro.encoder'] += aceleracao
-                    elif self.tags['ro.encoder'] > target_rpm + aceleracao:
-                        self.tags['ro.encoder'] -= aceleracao
+                    if self.tags['co.encoder'] < target_rpm - aceleracao:
+                        self.tags['co.encoder'] += aceleracao
+                    elif self.tags['co.encoder'] > target_rpm + aceleracao:
+                        self.tags['co.encoder'] -= aceleracao
                     else:
-                        self.tags['ro.encoder'] = target_rpm + random.uniform(-0.5, 0.5)
+                        self.tags['co.encoder'] = target_rpm + random.uniform(-0.5, 0.5)
 
-                    self.tags['ro.encoder'] = max(0, min(65.0, self.tags['ro.encoder']))
-                    base_power = 4000 * (self.tags['ro.encoder'] / 60.0)**2
-                    self.tags['ro.ativa_total'] = base_power + random.uniform(-100, 100)
-                    self.tags['ro.reativa_total'] = base_power * 0.4 + random.uniform(-50, 50)
-                    self.tags['ro.aparente_total'] = (self.tags['ro.ativa_total']**2 + self.tags['ro.reativa_total']**2)**0.5
-                    self.tags['ro.fp_total'] = self.tags['ro.ativa_total'] / self.tags['ro.aparente_total'] if self.tags['ro.aparente_total'] > 0 else 1
-                    self.tags['ro.torque'] = (self.tags['ro.ativa_total'] / (2 * 3.14159 * self.tags['ro.encoder'])) if self.tags['ro.encoder'] > 1 else 0
-                    self.tags['ro.temp_carc'] = min(95, self.tags['ro.temp_carc'] + 0.2 * (self.tags['ro.encoder'] / 60.0) - 0.05)
-                    self.tags['ro.corrente_media'] = (self.tags['ro.aparente_total'] / (220 * (3**0.5))) + random.uniform(-0.1, 0.1)
+                    self.tags['co.encoder'] = max(0, min(65.0, self.tags['co.encoder']))
+                    base_power = 4000 * (self.tags['co.encoder'] / 60.0)**2
+                    self.tags['co.ativa_total'] = base_power + random.uniform(-100, 100)
+                    self.tags['co.reativa_total'] = base_power * 0.4 + random.uniform(-50, 50)
+                    self.tags['co.aparente_total'] = (self.tags['co.ativa_total']**2 + self.tags['co.reativa_total']**2)**0.5
+                    self.tags['co.fp_total'] = self.tags['co.ativa_total'] / self.tags['co.aparente_total'] if self.tags['co.aparente_total'] > 0 else 1
+                    self.tags['co.torque'] = (self.tags['co.ativa_total'] / (2 * 3.14159 * self.tags['co.encoder'])) if self.tags['co.encoder'] > 1 else 0
+                    self.tags['co.temp_carc'] = min(95, self.tags['co.temp_carc'] + 0.2 * (self.tags['co.encoder'] / 60.0) - 0.05)
+                    self.tags['co.corrente_media'] = (self.tags['co.aparente_total'] / (220 * (3**0.5))) + random.uniform(-0.1, 0.1)
                 else:
-                    self.tags['ro.encoder'] = max(0, self.tags['ro.encoder'] - 4.0)
-                    for tag in ['ro.ativa_total', 'ro.reativa_total', 'ro.aparente_total', 'ro.torque']:
+                    self.tags['co.encoder'] = max(0, self.tags['co.encoder'] - 4.0)
+                    for tag in ['co.ativa_total', 'co.reativa_total', 'co.aparente_total', 'co.torque']:
                         self.tags[tag] *= 0.9
-                    self.tags['ro.corrente_media'] = random.uniform(0.0, 0.05)
-                    self.tags['ro.fp_total'] = 1.0
-                    self.tags['ro.temp_carc'] = max(25.0, self.tags['ro.temp_carc'] - 0.1)
+                    self.tags['co.corrente_media'] = random.uniform(0.0, 0.05)
+                    self.tags['co.fp_total'] = 1.0
+                    self.tags['co.temp_carc'] = max(25.0, self.tags['co.temp_carc'] - 0.1)
 
-                self.tags['ro.tensao_rs'] = 220.0 + random.uniform(-2, 2)
-                self.tags['ro.tensao_st'] = 220.0 + random.uniform(-2, 2)
-                self.tags['ro.tensao_tr'] = 220.0 + random.uniform(-2, 2)
-                self.tags['ro.corrente_r'] = self.tags['ro.corrente_media'] + random.uniform(-0.05, 0.05)
-                self.tags['ro.corrente_s'] = self.tags['ro.corrente_media'] + random.uniform(-0.05, 0.05)
-                self.tags['ro.corrente_t'] = self.tags['ro.corrente_media'] + random.uniform(-0.05, 0.05)
-                self.tags['ro.corrente_n'] = random.uniform(0.0, 0.03)
-                self.tags['ro.frequencia'] = self.tags['ro.encoder']
+                self.tags['co.tensao_rs'] = 220.0 + random.uniform(-2, 2)
+                self.tags['co.tensao_st'] = 220.0 + random.uniform(-2, 2)
+                self.tags['co.tensao_tr'] = 220.0 + random.uniform(-2, 2)
+                self.tags['co.corrente_r'] = self.tags['co.corrente_media'] + random.uniform(-0.05, 0.05)
+                self.tags['co.corrente_s'] = self.tags['co.corrente_media'] + random.uniform(-0.05, 0.05)
+                self.tags['co.corrente_t'] = self.tags['co.corrente_media'] + random.uniform(-0.05, 0.05)
+                self.tags['co.corrente_n'] = random.uniform(0.0, 0.03)
+                self.tags['co.frequencia'] = self.tags['co.encoder']
 
                 # Lógica de pressão e vazão
-                pressure_gen = (self.tags['ro.encoder'] / 60.0) * 1.5
-                pressao_efetiva = max(0, self.tags['ro.pressao'] - 1.0)
+                pressure_gen = (self.tags['co.encoder'] / 60.0) * 1.5
+                pressao_efetiva = max(0, self.tags['co.pressao'] - 1.0)
                 flow_loss = sum(0.8 for i in range(1, 7) if self.tags.get(f'co.xv{i}', 0)) * (pressao_efetiva / 9.0)
-                self.tags['ro.pressao'] += (pressure_gen - flow_loss) * dt * 0.2
-                self.tags['ro.pressao'] = max(1.0, min(10, self.tags['ro.pressao']))
+                self.tags['co.pressao'] += (pressure_gen - flow_loss) * dt * 0.2
+                self.tags['co.pressao'] = max(1.0, min(10, self.tags['co.pressao']))
                 
-                self.tags['ro.fit03'] = (15.0 * pressao_efetiva / 9.0 + random.uniform(-0.5, 0.5)) if self.tags.get('co.xv1', 0) else 0.0
-                self.tags['ro.fit02'] = sum((12.0 * pressao_efetiva / 9.0 + random.uniform(-0.5, 0.5)) for i in range(2, 7) if self.tags.get(f'co.xv{i}', 0))
+                self.tags['co.fit03'] = (15.0 * pressao_efetiva / 9.0 + random.uniform(-0.5, 0.5)) if self.tags.get('co.xv1', 0) else 0.0
+                self.tags['co.fit02'] = sum((12.0 * pressao_efetiva / 9.0 + random.uniform(-0.5, 0.5)) for i in range(2, 7) if self.tags.get(f'co.xv{i}', 0))
                 
                 self.app.db.log_reading(self.tags)
             time.sleep(dt)
