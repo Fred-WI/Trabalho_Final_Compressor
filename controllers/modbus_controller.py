@@ -1,3 +1,6 @@
+import logging
+logger = logging.getLogger("SCADA_ModbusController")
+
 import os
 import platform
 import random
@@ -7,6 +10,9 @@ import time
 from pyModbusTCP.client import ModbusClient
 from pymodbus.exceptions import ConnectionException
 
+from tag_manager import load_tags
+
+
 class ModbusController:
     def __init__(self, app):
         self.app = app; self.mode = None; self.client = None; self.is_connected = False
@@ -14,37 +20,7 @@ class ModbusController:
         self._build_tag_map(); self._initialize_tags()
 
     def _build_tag_map(self):
-        self.tags_addrs = {
-            "co.encoder": {"type":"FP","address":884,"div":1,"unit":"Hz","db_col":"rotacao"}, 
-            "co.torque": {"type":"FP","address":1420,"div":1,"unit":"N·m","db_col":"torque"},
-            "co.pressostato": {"type":"4X","address":710,"div":1,"unit":""}, 
-            "co.temp_carc": {"type":"FP","address":706,"div":10,"unit":"°C","db_col":"temp_carc"},
-            "co.temp_r": {"type":"FP","address":700,"div":10,"unit":"°C"}, 
-            "co.temp_s": {"type":"FP","address":702,"div":10,"unit":"°C"},
-            "co.temp_t": {"type":"FP","address":704,"div":10,"unit":"°C"}, 
-            "co.corrente_r": {"type":"4X","address":840,"div":10,"unit":"A"},
-            "co.corrente_s": {"type":"4X","address":841,"div":10,"unit":"A"}, 
-            "co.corrente_t": {"type":"4X","address":842,"div":10,"unit":"A"},
-            "co.corrente_n": {"type":"4X","address":843,"div":10,"unit":"A"}, 
-            "co.fit02": {"type":"FP","address":716,"div":1,"unit":"L/min","db_col":"vazao_fit02"},
-            "co.fit03": {"type":"FP","address":718,"div":1,"unit":"L/min","db_col":"vazao_fit03"}, 
-            "co.tensao_rs": {"type":"4X","address":847,"div":10,"unit":"V"},
-            "co.tensao_st": {"type":"4X","address":848,"div":10,"unit":"V"}, 
-            "co.tensao_tr": {"type":"4X","address":849,"div":10,"unit":"V"},
-            "co.corrente_media": {"type":"4X","address":845,"div":10,"unit":"A"}, 
-            "co.pressao": {"type":"FP","address":714,"div":1,"unit":"bar","db_col":"pressao"},
-            'co.ativa_total': {'type':'4X','address':855,'div':1,'unit':'W',"db_col":"pot_ativa"}, 
-            'co.reativa_total': {'type':'4X','address':859,'div':1,'unit':'VAR',"db_col":"pot_reativa"},
-            'co.aparente_total': {'type':'4X','address':863,'div':1,'unit':'VA',"db_col":"pot_aparente"}, 
-            'co.fp_total': {'type':'4X','address':871,'div':1000,'unit':''},
-            'co.frequencia': {'type':'4X','address':830,'div':100,'unit':'Hz'}, 
-            "co.xv1": {"type":"4X","address":712,"bit":0}, "co.xv2": {"type":"4X","address":712,"bit":1},
-            "co.xv3": {"type":"4X","address":712,"bit":2}, "co.xv4": {"type":"4X","address":712,"bit":3},
-            "co.xv5": {"type":"4X","address":712,"bit":4}, "co.xv6": {"type":"4X","address":712,"bit":5},
-            "co.tipo_motor": {"type":"4X","address":708}, "co.sel_driver": {"type":"4X","address":1324},
-            "co.freq_ref": {"type":"4X","address":1313,"div":1,"unit":"Hz"},
-            "co.habilita": {"type":"4X","address":1328,"bit":1},
-        }
+        self.tags_addrs = load_tags('config/tags_compressor.json')
     
 
     def get_motor_status(self):
@@ -246,35 +222,52 @@ class ModbusController:
     def get_tag_info(self, tag): return self.tags_addrs.get(tag, {})
     
 
-    def write_tag(self, tag, value):
-        if not self.is_connected or tag not in self.tags_addrs: return
-        with self.lock: self.tags[tag] = float(value)
+    def write_tag(self, tag_name, value):
+
+        if tag_name not in self.tags_addrs:
+            logger.warning(f"Tentativa de escrita em tag inexistente: {tag_name}")
+            return False
+        
+        tag_info = self.tags_addrs[tag_name]
+
+        if tag_info.get("rw") == "R":
+            logger.warning(f"Tentativa de escrita na tag Somente Leitura: {tag_name}")
+            return False
+        
+        address = tag_info["address"]
+        tag_type = tag_info["type"]
+        div = tag_info.get("div", 1)
+
+        if not self.is_connected: return
+
+        with self.lock: 
+            self.tags[tag_name] = float(value)
+
         if self.mode == 'simulation':
             # Log da ação mesmo em simulação
-            self.app.db.log_event('comando', f'[COMPRESSOR] Simulação: Tag {tag} escrita com valor {value}')
+            self.app.db.log_event('comando', f'[COMPRESSOR] Simulação: Tag {tag_name} escrita com valor {value}')
             return
         
-        info, addr = self.tags_addrs[tag], self.tags_addrs[tag]['address']
         try:
-            # Correção: Substituído 'write_register' por 'write_single_register'
             with self.lock:
-                if info.get('bit') is not None:
-                    regs = self.client.read_holding_registers(addr, 1)
+                bit_val = tag_info.get('bit')
+                if bit_val != "" and bit_val is not None:
+                    bit = int(bit_val)
+                    regs = self.client.read_holding_registers(address, 1)
                     if regs:
                         reg_val = regs[0]
-                        new_val = reg_val | (1 << info['bit']) if value == 1 else reg_val & ~(1 << info['bit'])
-                        self.client.write_single_register(addr, new_val)
+                        new_val = reg_val | (1 << tag_info['bit']) if value == 1 else reg_val & ~(1 << tag_info['bit'])
+                        self.client.write_single_register(address, new_val)
                     else:
-                        print(f"Erro de escrita Modbus: Falha ao ler o registrador {addr} para modificar o bit.")
-                        self.app.db.log_event('erro', f"Falha de leitura ao preparar escrita no bit {info['bit']} do registrador {addr}")
+                        print(f"Erro de escrita Modbus: Falha ao ler o registrador {address} para modificar o bit.")
+                        self.app.db.log_event('erro', f"Falha de leitura ao preparar escrita no bit {tag_info['bit']} do registrador {address}")
                 else:
-                    self.client.write_single_register(addr, int(value * info.get('div', 1)))
-                
-                # CORREÇÃO 1: Adicionado o prefixo [COMPRESSOR] ao log de comando
-                self.app.db.log_event('comando', f'[COMPRESSOR] Tag {tag} escrita com valor {value}')
+                    self.client.write_single_register(address, int(value * div))
+            
+                self.app.db.log_event('comando', f'[COMPRESSOR] Tag {tag_name} escrita com valor {value}')
         except (ConnectionException, AttributeError) as e:
             print(f"Erro de escrita Modbus: {e}. Desconectando..."); self.is_connected = False
-            self.app.db.log_event('erro', f"Falha de conexão na escrita em {tag}")
+            self.app.db.log_event('erro', f"Falha de conexão na escrita em {tag_name}")
         except Exception as e:
             print(f"Erro de escrita Modbus: {e}"); self.app.db.log_event('erro', f"Falha de escrita em {tag}")
 
