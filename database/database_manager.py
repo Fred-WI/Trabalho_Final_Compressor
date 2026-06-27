@@ -60,15 +60,15 @@ class DatabaseManager:
         try:
             reading = Reading(
                 timestamp=datetime.now(),
-                pressao=float(tags.get("ro.pressao", 0)),
-                torque=float(tags.get("ro.torque", 0)),
-                rotacao=float(tags.get("ro.encoder", 0)),
-                vazao_fit02=float(tags.get("ro.fit02", 0)),
-                vazao_fit03=float(tags.get("ro.fit03", 0)),
-                temp_carc=float(tags.get("ro.temp_carc", 0)),
-                pot_ativa=float(tags.get("ro.ativa_total", 0)),
-                pot_reativa=float(tags.get("ro.reativa_total", 0)),
-                pot_aparente=float(tags.get("ro.aparente_total", 0)),
+                pressao=float(tags.get("co.pressao", 0)),
+                torque=float(tags.get("co.torque", 0)),
+                rotacao=float(tags.get("co.encoder", 0)),
+                vazao_fit02=float(tags.get("co.fit02", 0)),
+                vazao_fit03=float(tags.get("co.fit03", 0)),
+                temp_carc=float(tags.get("co.temp_carc", 0)),
+                pot_ativa=float(tags.get("co.ativa_total", 0)),
+                pot_reativa=float(tags.get("co.reativa_total", 0)),
+                pot_aparente=float(tags.get("co.aparente_total", 0)),
             )
             session.add(reading)
             session.commit()
