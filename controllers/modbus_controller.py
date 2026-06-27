@@ -10,7 +10,7 @@ import time
 from pyModbusTCP.client import ModbusClient
 from pymodbus.exceptions import ConnectionException
 
-from tag_manager import load_tags
+from controllers.tag_manager import load_tags
 
 
 class ModbusController:
@@ -256,11 +256,11 @@ class ModbusController:
                     regs = self.client.read_holding_registers(address, 1)
                     if regs:
                         reg_val = regs[0]
-                        new_val = reg_val | (1 << tag_info['bit']) if value == 1 else reg_val & ~(1 << tag_info['bit'])
+                        new_val = reg_val | (1 << bit) if value == 1 else reg_val & ~(1 << bit)
                         self.client.write_single_register(address, new_val)
                     else:
                         print(f"Erro de escrita Modbus: Falha ao ler o registrador {address} para modificar o bit.")
-                        self.app.db.log_event('erro', f"Falha de leitura ao preparar escrita no bit {tag_info['bit']} do registrador {address}")
+                        self.app.db.log_event('erro', f"Falha de leitura ao preparar escrita no bit {bit} do registrador {address}")
                 else:
                     self.client.write_single_register(address, int(value * div))
             
@@ -301,16 +301,15 @@ class ModbusController:
                 with self.lock:
                     # Correção: Lógica de leitura ajustada para pyModbusTCP e bug de bit corrigido
                     for tag, info in self.tags_addrs.items():
-                        if tag.startswith('co_'):
-                            continue
                         
                         addr, div, val = info["address"], info.get('div', 1), 0.0
                         try:
                             if info['type'] == '4X':
                                 regs = self.client.read_holding_registers(addr, 1)
                                 if regs:  # Leitura bem-sucedida, regs é uma lista (ex: [123])
-                                    bit = info.get("bit")
-                                    if bit is not None:
+                                    bit_val = info.get("bit")
+                                    if bit_val != "" and bit_val is not None:
+                                        bit = int(bit_val)
                                         # Se for um bit, extrai o valor do bit (0 ou 1)
                                         val = (regs[0] >> bit) & 1
                                     else:
