@@ -10,19 +10,21 @@ import time
 from pyModbusTCP.client import ModbusClient
 from pymodbus.exceptions import ConnectionException
 
-from controllers.tag_manager import load_tags
+from controllers.config_load import load_tags, load_configs
 
 
 class ModbusController:
     def __init__(self, app):
         self.app = app; self.mode = None; self.client = None; self.is_connected = False
         self.lock = threading.Lock(); self.polling_thread = None
-        self._build_tag_map(); self._initialize_tags()
+        self._build_tag_map(); self._initialize_tags(); self._build_config_map()
+
+    def _build_config_map(self):
+        self.configs_map = load_configs('config/app_config.json')
 
     def _build_tag_map(self):
         self.tags_addrs = load_tags('config/tags_compressor.json')
     
-
     def get_motor_status(self):
         """Retorna True se o motor estiver ligado.
 
@@ -30,42 +32,38 @@ class ModbusController:
         No modo simulação, o estado é lido diretamente da tag interna
         co.habilita, pois não existe self.client no simulador.
         """
-        if not self.is_connected:
-            return False
-
-        if self.mode == 'simulation':
-            return self.tags.get('co.habilita', 0) == 1
+        if not self.is_connected: return False
+        if self.mode == 'simulation': return self.tags.get('co.habilita', 0) == 1
             
         try:
             with self.lock:
-                if not self.client:
-                    return False
+                if not self.client: return False
 
                 # Lê qual tipo de partida está selecionada no CLP
-                indica_driver_regs = self.client.read_holding_registers(1216, 1)
-                if not indica_driver_regs:
-                    return False
-                    
+                addr_indica = self.tags_addrs["sys.indica_driver"]["address"]
+                indica_driver_regs = self.client.read_holding_registers(addr_indica, 1)
+                
+                if not indica_driver_regs: return False    
                 indica_driver = indica_driver_regs[0]
+
+                mapa_tags_estado = {
+                    1: "sys.estado_softstarter",
+                    2: "sys.estado_inversor",
+                    3: "sys.estado_direta"
+                }
+
+                tag_alvo = mapa_tags_estado.get(indica_driver, "sys.estado_direta")
+                addr_estado = self.tags_addrs[tag_alvo]["address"]
                 
                 # Lê o estado atual baseado no tipo de partida
-                if indica_driver == 1:      # Softstarter
-                    estado_regs = self.client.read_holding_registers(886, 1)
-                elif indica_driver == 2:    # Inversor
-                    estado_regs = self.client.read_holding_registers(888, 1)
-                elif indica_driver == 3:    # Partida direta
-                    estado_regs = self.client.read_holding_registers(890, 1)
-                else:                       # Padrão - partida direta
-                    estado_regs = self.client.read_holding_registers(890, 1)
+                estado_regs = self.client.read_holding_registers(addr_estado, 1)
                     
                 if estado_regs:
                     return estado_regs[0] == 1
-                    
             return False
             
         except Exception as e:
             self.app.db.log_event('erro', f'Erro ao verificar estado do motor: {e}')
-            print(f"Erro ao verificar estado do motor: {e}")
             return False
 
     def comandoMotor(self, commandType):
@@ -83,6 +81,7 @@ class ModbusController:
             return False
 
         commandType = int(commandType)
+        tipos_nome = self.configs_map["tipos_partida"]
 
         if self.mode == 'simulation':
             with self.lock:
@@ -97,20 +96,18 @@ class ModbusController:
                 if self.tags.get('co.sel_driver', 0) == 2 and self.tags.get('co.freq_ref', 0) == 0:
                     self.tags['co.freq_ref'] = 20.0
 
-            tipo_nome = {0: 'Indefinida', 1: 'Soft-start', 2: 'Inversor', 3: 'Direta'}
-            tipo = int(self.tags.get('co.sel_driver', 0))
+            tipo = str(int(self.tags.get("co.sel_driver", 0)))
             acao = 'LIGADO' if commandType == 1 else 'DESLIGADO'
-            self.app.db.log_event('comando', f'[COMPRESSOR] Simulação: Motor {acao} - Partida: {tipo_nome.get(tipo, "Desconhecida")}')
+            self.app.db.log_event('comando', f'[COMPRESSOR] Simulação: Motor {acao} - Partida: {tipos_nome.get(tipo, "Desconhecida")}')
             return True
             
         try:
             with self.lock:
-                if not self.client:
-                    self.app.db.log_event('erro', 'Cliente Modbus não inicializado')
-                    return False
+                if not self.client: return False
 
-                # Lê qual tipo de partida está selecionada
-                tipo_partida_regs = self.client.read_holding_registers(1216, 1)
+                addr_indica = self.tags_addrs["sys.indica_driver"]["address"]
+
+                tipo_partida_regs = self.client.read_holding_registers(addr_indica, 1)
                 if not tipo_partida_regs:
                     self.app.db.log_event('erro', 'Falha ao ler tipo de partida')
                     return False
@@ -118,31 +115,29 @@ class ModbusController:
                 tipo_partida = tipo_partida_regs[0]
             
             # Endereços de comando para cada tipo de partida
-            startTypeDictionary = {
-                0: 1319,  # Sem partida definida - usa direta
-                1: 1316,  # Softstarter
-                2: 1312,  # Inversor
-                3: 1319,  # Partida direta
+            mapa_tags_cmd = {
+                0: "sys.cmd_direta",
+                1: "sys.cmd_softstarter",
+                2: "sys.cmd_inversor",
+                3: "sys.cmd_direta"
             }
             
-            endereco_comando = startTypeDictionary.get(tipo_partida, 1319)
+            tag_cmd_alvo = mapa_tags_cmd.get(tipo_partida, "sys.cmd_direta")
+            endereco_comando = self.tags_addrs[tag_cmd_alvo]["address"]
             
             with self.lock:
                 success = self.client.write_single_register(endereco_comando, commandType)
                 
             if success:
-                tipo_nome = {0: 'Indefinida', 1: 'Softstarter', 2: 'Inversor', 3: 'Direta'}
                 acao = 'LIGADO' if commandType == 1 else 'DESLIGADO'
-                self.app.db.log_event('comando', f'[COMPRESSOR] Motor {acao} - Partida: {tipo_nome.get(tipo_partida, "Desconhecida")}')
+                nome_partida = tipos_nome.get(str(tipo_partida), "Desconhecida")
+                self.app.db.log_event('comando', f'[COMPRESSOR] Motor {acao} - Partida: {nome_partida}')
                 self.tags['co.habilita'] = float(commandType)
                 return True
-            else:
-                self.app.db.log_event('erro', f'Falha ao enviar comando motor (tipo partida: {tipo_partida})')
-                return False
+            return False
                 
         except Exception as e:
             self.app.db.log_event('erro', f'Erro no comando motor: {e}')
-            print(f"Erro no comando motor: {e}")
             return False
 
     def clique_motor(self):
@@ -177,15 +172,20 @@ class ModbusController:
         self.disconnect()
         self.mode = mode
 
+        net_cfg = self.configs_map["network"].get(mode, self.configs_map["network"]["simulation"])
+        ip = net_cfg["ip"]
+        port = net_cfg["port"]
+        timeout = net_cfg.get("timeout", 3)
+
         if mode == 'simulation':
             self.is_connected = True
             self.polling_thread = threading.Thread(target=self._simulation_loop, daemon=True)
             self.polling_thread.start()
-            return True, "Conectado ao Simulador Interno"
+            return True, f"Conectado ao Simulador Interno {ip}:{port}"
 
-        # Validação do IP
-        if ip != '10.15.30.182':
-            return False, "Erro: IP Inválido. Conecte-se a 10.15.30.182"
+        # # Validação do IP
+        # if ip != '10.15.30.182':
+        #     return False, "Erro: IP Inválido. Conecte-se a 10.15.30.182"
 
         # Teste de ping
         param = '-n 1' if platform.system().lower() == 'windows' else '-c 1'
@@ -195,8 +195,8 @@ class ModbusController:
 
         # Tentativa de conexão Modbus TCP
         try:
-            self.client = ModbusClient(host=ip, port=port, timeout=3)
-            self.is_connected = self.client.open()  # <-- Correção aqui
+            self.client = ModbusClient(host=ip, port=port, timeout=timeout)
+            self.is_connected = self.client.open() 
 
             if self.is_connected:
                 self.polling_thread = threading.Thread(target=self._real_data_polling_loop, daemon=True)
@@ -278,8 +278,9 @@ class ModbusController:
         if self.get_motor_status():
             return False
         
+        addr_troca = self.tags_addrs["sys.cmd_troca_partida"]["address"]
         with self.lock:
-            self.client.write_single_register(1324,tipo_partida)
+            self.client.write_single_register(addr_troca, tipo_partida)
         return True
     
     def _float32_to_registers(self, value):
@@ -312,6 +313,8 @@ class ModbusController:
         return struct.unpack('>f', raw)[0]
 
     def _real_data_polling_loop(self):
+        tickrate = self.configs_map["network"]["real"]["tickrate"]
+
         while self.is_connected and self.mode == 'real':
             start_time = time.time()
             try:
@@ -347,7 +350,7 @@ class ModbusController:
                             pass
                 self.app.db.log_reading(self.tags)
                 elapsed = time.time() - start_time
-                if elapsed < 1.0: time.sleep(1.0 - elapsed)
+                if elapsed < tickrate: time.sleep(tickrate - elapsed)
             except (ConnectionException, AttributeError) as e: print(f"Polling Modbus falhou: {e}."); self.is_connected = False
             except Exception as e: print(f"Erro inesperado no polling: {e}")
 

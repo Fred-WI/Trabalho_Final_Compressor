@@ -972,5 +972,85 @@
         "unit": "Nm",
         "category": "process",
         "save_history": true
+    },
+    "sys.indica_driver": {
+        "type": "4X",
+        "address": 1216,
+        "bit": "",
+        "tag": "sys.indica_driver",
+        "div": 1,
+        "rw": "R",
+        "category": "system",
+        "save_history": false
+    },
+    "sys.estado_softstarter": {
+        "type": "4X",
+        "address": 886,
+        "bit": "",
+        "tag": "sys.estado_softstarter",
+        "div": 1,
+        "rw": "R",
+        "category": "system",
+        "save_history": false
+    },
+    "sys.estado_inversor": {
+        "type": "4X",
+        "address": 888,
+        "bit": "",
+        "tag": "sys.estado_inversor",
+        "div": 1,
+        "rw": "R",
+        "category": "system",
+        "save_history": false
+    },
+    "sys.estado_direta": {
+        "type": "4X",
+        "address": 890,
+        "bit": "",
+        "tag": "sys.estado_direta",
+        "div": 1,
+        "rw": "R",
+        "category": "system",
+        "save_history": false
+    },
+    "sys.cmd_softstarter": {
+        "type": "4X",
+        "address": 1316,
+        "bit": "",
+        "tag": "sys.cmd_softstarter",
+        "div": 1,
+        "rw": "RW",
+        "category": "system",
+        "save_history": false
+    },
+    "sys.cmd_inversor": {
+        "type": "4X",
+        "address": 1312,
+        "bit": "",
+        "tag": "sys.cmd_inversor",
+        "div": 1,
+        "rw": "RW",
+        "category": "system",
+        "save_history": false
+    },
+    "sys.cmd_direta": {
+        "type": "4X",
+        "address": 1319,
+        "bit": "",
+        "tag": "sys.cmd_direta",
+        "div": 1,
+        "rw": "RW",
+        "category": "system",
+        "save_history": false
+    },
+    "sys.cmd_troca_partida": {
+        "type": "4X",
+        "address": 1324,
+        "bit": "",
+        "tag": "sys.cmd_troca_partida",
+        "div": 1,
+        "rw": "RW",
+        "category": "system",
+        "save_history": false
     }
 }
