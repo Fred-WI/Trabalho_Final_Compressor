@@ -261,6 +261,9 @@ class ModbusController:
                     else:
                         print(f"Erro de escrita Modbus: Falha ao ler o registrador {address} para modificar o bit.")
                         self.app.db.log_event('erro', f"Falha de leitura ao preparar escrita no bit {bit} do registrador {address}")
+                elif tag_info['type'] == 'FP':
+                    regs_to_write = self._float32_to_registers(value / div)
+                    self.client.write_multiple_registers(address, regs_to_write)
                 else:
                     self.client.write_single_register(address, int(value * div))
             
@@ -269,7 +272,7 @@ class ModbusController:
             print(f"Erro de escrita Modbus: {e}. Desconectando..."); self.is_connected = False
             self.app.db.log_event('erro', f"Falha de conexão na escrita em {tag_name}")
         except Exception as e:
-            print(f"Erro de escrita Modbus: {e}"); self.app.db.log_event('erro', f"Falha de escrita em {tag}")
+            print(f"Erro de escrita Modbus: {e}"); self.app.db.log_event('erro', f"Falha de escrita em {tag_name}")
 
     def troca_partida(self, tipo_partida):
         if self.get_motor_status():
@@ -279,7 +282,21 @@ class ModbusController:
             self.client.write_single_register(1324,tipo_partida)
         return True
     
-    def _converter_float32(self, regs):
+    def _float32_to_registers(self, value):
+        """Converte um float32 do Python em dois registradores de 16 bits.
+        Faz o inverso exato da função _converter_float32_from_registers.
+        """
+        import struct
+        # Empacota o float em 4 bytes no padrão IEEE 754
+        raw_bytes = struct.pack('>f', float(value))
+        
+        # Word order little: [low_word, high_word] -> high_word primeiro
+        high_word = int.from_bytes(raw_bytes[0:2], byteorder='big')
+        low_word = int.from_bytes(raw_bytes[2:4], byteorder='big')
+        
+        return [low_word, high_word]
+
+    def _float32_from_registers(self, regs):
         """Converte dois registradores Modbus de 16 bits em float32.
 
         A ordem abaixo mantém compatibilidade com a correção feita para substituir
@@ -319,7 +336,7 @@ class ModbusController:
                             elif info['type'] == 'FP':
                                 regs = self.client.read_holding_registers(addr, 2)
                                 if regs:  # Leitura bem-sucedida, regs é uma lista (ex: [16560, 29860])
-                                    val = self._converter_float32(regs)
+                                    val = self._float32_from_registers(regs)
                             
                             # Atualiza o valor da tag
                             self.tags[tag] = val / div if div != 0 else val
