@@ -1,3 +1,12 @@
+"""
+Módulo de Controle Modbus TCP para Sistema SCADA.
+
+Este módulo implementa a interface de comunicação entre o aplicativo Kivy e os
+registradores do CLP (Controlador Lógico Programável). Ele opera em uma arquitetura
+agnóstica, podendo atuar como cliente para um hardware físico ou instanciar e 
+conectar-se a um servidor de simulação local.
+"""
+
 import logging
 logger = logging.getLogger("SCADA_ModbusController")
 
@@ -14,12 +23,27 @@ from pyModbusTCP.client import ModbusClient
 from pymodbus.exceptions import ConnectionException
 
 from controllers.config_load import load_tags, load_configs
-
 from controllers.simulador_clp import CompressorSimulator
 
 
 class ModbusController:
+    """
+    Controlador de comunicação e orquestração de threads para o protocolo Modbus TCP.
+
+    Gerencia o ciclo de vida da conexão (abertura, polling de leitura e fechamento),
+    mantém a sincronização de memória interna através de locks de thread e 
+    encapsula a lógica de conversão de dados (Float32, bits, inteiros) baseada
+    no dicionário de metadados das tags.
+    """
+
     def __init__(self, app):
+        """
+        Inicializa as estruturas de dados e os controladores de concorrência.
+
+        Args:
+            app (App): Referência à instância principal do aplicativo (Kivy),
+                       utilizada para acesso a módulos compartilhados (ex: banco de dados).
+        """
         self.app = app
         self.mode = None
         self.client = None
@@ -34,14 +58,45 @@ class ModbusController:
         self._build_config_map()
         self._initialize_tags()
 
+    def _build_config_map(self):
+        """Carrega os parâmetros de rede e metadados de configuração do arquivo JSON."""
+        self.configs_map = load_configs('config/app_config.json')
 
-    # Inicialização de configs_map, tags_addrs e tags
-    def _build_config_map(self): self.configs_map = load_configs('config/app_config.json')
-    def _build_tag_map(self): self.tags_addrs = load_tags('config/tags_compressor.json')
-    def _initialize_tags(self): self.tags = {tag: 0.0 for tag in self.tags_addrs.keys()}
+    def _build_tag_map(self):
+        """Carrega o mapeamento de endereços de registradores Modbus do arquivo JSON."""
+        self.tags_addrs = load_tags('config/tags_compressor.json')
+
+    def _initialize_tags(self):
+        """
+        Aloca o dicionário de estado interno das tags na memória RAM.
+
+        Complexidade:
+            Tempo: O(N) | Espaço: O(N), onde N é o número de tags carregadas.
+        """
+        self.tags = {tag: 0.0 for tag in self.tags_addrs.keys()}
     
-    # Conexão
     def connect(self, mode, ip='127.0.0.1', port=502):
+        """
+        Estabelece o canal de comunicação Modbus e inicia as threads subjacentes.
+
+        Dependendo do parâmetro 'mode', a função pode instanciar o servidor de
+        simulação em background antes de iniciar o cliente TCP. A inicialização
+        inclui teste de ICMP (ping) para garantir roteamento antes do socket.
+
+        Args:
+            mode (str): Modo de operação ('simulation' ou 'real').
+            ip (str, optional): Endereço IPv4 alvo. Padrão é '127.0.0.1'.
+            port (int, optional): Porta TCP alvo. Padrão é 502.
+
+        Returns:
+            tuple: (bool, str) representando o estado de sucesso e a mensagem de log associada.
+
+        Pré-condições:
+            Estado interno indefinido. Conexões anteriores podem estar abertas.
+        Pós-condições:
+            Socket TCP aberto. Thread de polling instanciada e rodando em background.
+            Se aplicável, Thread de simulação rodando.
+        """
         self.disconnect()
         self.mode = mode
 
@@ -54,7 +109,7 @@ class ModbusController:
             logger.info("Iniciando conexão com o Servidor Modbus Simulado local em outra Thread...")
             
             self.simulator_thread = threading.Thread(
-                target= self._run_simulator_server,
+                target=self._run_simulator_server,
                 args=(target_ip, port),
                 daemon=True
             )
@@ -62,14 +117,14 @@ class ModbusController:
             self.simulator_thread.start()
             time.sleep(0.5)
 
-        # Teste de ping
+        # TODO: Substituir chamada síncrona `os.system` por `subprocess.run` para evitar 
+        # bloqueio da thread chamadora e possíveis injeções de comandos do sistema operacional.
         if mode != 'simulation':
             param = '-n 1' if platform.system().lower() == 'windows' else '-c 1'
             redir = '> NUL 2>&1' if platform.system().lower() == 'windows' else '> /dev/null 2>&1'
             if os.system(f"ping {param} {ip} {redir}") != 0:
                 return False, f"Falha no Ping: Host {ip} inacessível."
 
-        # Tentativa de conexão Modbus TCP
         try:
             self.client = ModbusClient(host=target_ip, port=port, timeout=timeout)
             self.is_connected = self.client.open() 
@@ -86,7 +141,9 @@ class ModbusController:
             return False, f"Erro de conexão: {e}"
 
     def _stop_simulator(self):
-        """Para o servidor do professor e aguarda a thread morrer."""
+        """
+        Encerra o servidor de simulação local e aguarda a união (join) da thread.
+        """
         if self.simulator_server:
             self.simulator_server.stop()
             self.simulator_server = None
@@ -96,30 +153,39 @@ class ModbusController:
             self.simulator_thread = None
 
     def disconnect(self):
+        """
+        Interrompe a malha de leitura e finaliza os sockets e threads ativas.
+
+        Garante o encerramento gracioso (graceful shutdown) para evitar o 
+        aprisionamento da porta 502 no sistema operacional.
+        """
         self.is_connected = False
         
-        # 1. Para a leitura de dados do SCADA
         if self.polling_thread and self.polling_thread.is_alive():
             self.polling_thread.join(timeout=1.5)
             self.polling_thread = None
             
-        # 2. Fecha a conexão do Cliente
         if self.client:
             self.client.close()
             self.client = None
             
         self.mode = None
         self._initialize_tags()
-        
-        # 3. Derruba a Thread da simulação (se houver)
         self._stop_simulator()
 
     def get_motor_status(self):
-        """Retorna True se o motor estiver ligado.
+        """
+        Lê e interpreta o estado do motor baseado na topologia da partida.
 
-        No modo real, o estado é lido do CLP.
-        No modo simulação, o estado é lido diretamente da tag interna
-        co.habilita, pois não existe self.client no simulador.
+        O método resolve o indirecionamento de registradores verificando primeiro
+        qual drive está ativo (direta, inversor, soft-starter) e, em seguida,
+        lê o estado específico correspondente.
+
+        Returns:
+            bool: True se o motor estiver ligado, False caso contrário ou em caso de erro.
+        
+        Complexidade:
+            Tempo: O(1) | Espaço: O(1).
         """
         if not self.is_connected: return False
             
@@ -127,7 +193,6 @@ class ModbusController:
             with self.lock:
                 if not self.client: return False
 
-                # Lê qual tipo de partida está selecionada no CLP
                 addr_indica = self.tags_addrs["sys.indica_driver"]["address"]
                 indica_driver_regs = self.client.read_holding_registers(addr_indica, 1)
                 
@@ -143,7 +208,6 @@ class ModbusController:
                 tag_alvo = mapa_tags_estado.get(indica_driver, "sys.estado_direta")
                 addr_estado = self.tags_addrs[tag_alvo]["address"]
                 
-                # Lê o estado atual baseado no tipo de partida
                 estado_regs = self.client.read_holding_registers(addr_estado, 1)
                 if estado_regs:
                     return estado_regs[0] == 1
@@ -154,14 +218,17 @@ class ModbusController:
             return False
 
     def comandoMotor(self, commandType):
-        """Liga ou desliga o motor.
+        """
+        Traduz a requisição lógica de acionamento em escrita de registradores.
 
-        commandType = 1 -> ligar
-        commandType = 0 -> desligar
+        Identifica a rota ativa de controle no CLP (partida selecionada) e
+        direciona o comando Modbus para o endereço apropriado.
 
-        No modo simulação, não existe comunicação Modbus real. Por isso,
-        o comando apenas altera as tags internas usadas pelo simulador.
-        No modo real, o comando é enviado ao CLP pelo registrador correto.
+        Args:
+            commandType (int): 1 para pulso de ligar, 0 para pulso de desligar.
+
+        Returns:
+            bool: Sucesso ou falha na escrita Modbus.
         """
         if not self.is_connected:
             self.app.db.log_event('erro', 'Tentativa de comando motor sem conexão')
@@ -171,19 +238,21 @@ class ModbusController:
         tipos_nome = self.configs_map["tipos_partida"]
             
         try:
+            # TODO: Unificar o bloco `with self.lock` desta função. Atualmente o lock é 
+            # solto após a leitura de 'addr_indica' e retomado na escrita, criando brechas 
+            # de concorrência onde o tipo de partida pode ser alterado por outra thread.
             with self.lock:
                 if not self.client: return False
 
                 addr_indica = self.tags_addrs["sys.indica_driver"]["address"]
-
                 tipo_partida_regs = self.client.read_holding_registers(addr_indica, 1)
+                
                 if not tipo_partida_regs:
                     self.app.db.log_event('erro', 'Falha ao ler tipo de partida')
                     return False
                     
                 tipo_partida = tipo_partida_regs[0]
             
-            # Endereços de comando para cada tipo de partida
             mapa_tags_cmd = {
                 0: "sys.cmd_direta",
                 1: "sys.cmd_softstarter",
@@ -211,7 +280,10 @@ class ModbusController:
 
     def clique_motor(self):
         """
-        Método para alternar estado do motor baseado no estado atual
+        Inverte (toggle) o estado lógico atual do motor.
+
+        Returns:
+            bool: Resultado da execução de comandoMotor().
         """
         if not self.is_connected: return False
         motor_ligado = self.get_motor_status()
@@ -219,6 +291,18 @@ class ModbusController:
         return self.comandoMotor(novo_comando)
 
     def troca_partida(self, tipo_partida):
+        """
+        Altera a malha lógica de acionamento de potência (driver).
+
+        Impede a transição mecânica se o motor estiver operando, protegendo
+        a simulação e a integridade de equipamentos físicos.
+
+        Args:
+            tipo_partida (int): ID identificador da topologia selecionada.
+
+        Returns:
+            bool: True se o intertravamento for aceito, False se rejeitado (motor ligado).
+        """
         if self.get_motor_status(): return False
         
         addr_troca = self.tags_addrs["sys.cmd_troca_partida"]["address"]
@@ -227,6 +311,23 @@ class ModbusController:
         return True
 
     def write_tag(self, tag_name, value):
+        """
+        Interface genérica para escrita formatada no servidor Modbus.
+
+        Avalia os metadados da tag e aplica a conversão matemática (divisores)
+        ou manipulação bit-a-bit (bit masking) necessárias antes do envio de rede.
+
+        Args:
+            tag_name (str): O identificador da tag no mapa.
+            value (float/int): O valor numérico em base decimal a ser salvo.
+
+        Returns:
+            bool: Indicador do sucesso do pacote na camada TCP.
+            
+        Raises:
+            ConnectionException: Em caso de queda abrupta do socket.
+            AttributeError: Em caso do socket interno ser definido como None prematuramente.
+        """
         if tag_name not in self.tags_addrs:
             logger.warning(f"Tentativa de escrita em tag inexistente: {tag_name}")
             return False
@@ -265,24 +366,32 @@ class ModbusController:
                 self.app.db.log_event('comando', f'[COMPRESSOR] Tag {tag_name} escrita com valor {value}')
                 return True
         except (ConnectionException, AttributeError) as e:
-            logger.error(f"Erro de escrita Modbus: {e}. Desconectando..."); self.is_connected = False
+            logger.error(f"Erro de escrita Modbus: {e}. Desconectando...")
+            self.is_connected = False
             self.app.db.log_event('erro', f"Falha de conexão na escrita em {tag_name}")
         except Exception as e:
             logger.error(f"Erro de escrita Modbus: {e}")
             self.app.db.log_event('erro', f"Falha de escrita em {tag_name}")
         return False
 
-    def read_tag(self, tag): 
+    def read_tag(self, tag):
+        """Obtém o valor contido na representação local de memória da aplicação."""
         with self.lock: return self.tags.get(tag, 0)
 
-    def get_tag_info(self, tag): 
+    def get_tag_info(self, tag):
+        """Retorna o dicionário de metadados referentes à tag consultada."""
         return self.tags_addrs.get(tag, {})
 
     def _float32_to_registers(self, value):
-        """Converte um float32 do Python em dois registradores de 16 bits.
-        Faz o inverso exato da função _converter_float32_from_registers.
         """
-        # Word order little: [low_word, high_word] -> high_word primeiro
+        Serializa um Float nativo (IEEE 754) em formato Word Order do Modbus (Big-Endian).
+
+        Args:
+            value (float): Valor decimal.
+            
+        Returns:
+            list[int]: Array contendo as duas words (16 bits cada) decodificadas.
+        """
         import struct
         raw_bytes = struct.pack('>f', float(value))
         high_word = int.from_bytes(raw_bytes[0:2], byteorder='big')
@@ -290,19 +399,32 @@ class ModbusController:
         return [low_word, high_word]
 
     def _float32_from_registers(self, regs):
-        """Converte dois registradores Modbus de 16 bits em float32.
-
-        A ordem abaixo mantém compatibilidade com a correção feita para substituir
-        BinaryPayloadDecoder em versões novas do PyModbus. Caso a bancada use
-        outra ordem de bytes/palavras, basta alterar esta função.
         """
-        # Word order little: [low_word, high_word] -> high_word primeiro
+        Desserializa um array de registradores Modbus em um Float (IEEE 754) para Python.
+
+        Args:
+            regs (list[int]): Lista de inteiros representando as word sizes lidas do servidor.
+
+        Returns:
+            float: O valor reconstituído, mantendo formato Big-Endian.
+        """
         import struct
         if not regs or len(regs) < 2: return 0.0
         raw = int(regs[1]).to_bytes(2, byteorder='big') + int(regs[0]).to_bytes(2, byteorder='big')
         return struct.unpack('>f', raw)[0]
 
     def _real_data_polling_loop(self):
+        """
+        Laço de repetição bloqueante para sincronismo continuo (Master/Slave).
+
+        Realiza iteração sobre o dicionário de metadados, constrói requisições
+        individuais, atualiza a RAM com desmascaramento e invoca as estratégias de
+        log no banco de dados. Compensação de tempo é aplicada para manter a taxa
+        de atualização (tickrate) consistente.
+
+        Complexidade:
+            Tempo: O(N) | Espaço: O(1) de alocação de memória por ciclo.
+        """
         tickrate = self.configs_map["network"].get(self.mode, self.configs_map["network"]["simulation"]).get("tickrate", 1.0)
 
         while self.is_connected:
@@ -327,17 +449,13 @@ class ModbusController:
                                     val = self._float32_from_registers(regs)
                             
                             self.tags[tag] = val / div if div != 0 else val
+                            
+                        # TODO: Substituir o bloco catch-all `except Exception: pass` pela 
+                        # captura de exceções específicas ligadas ao Modbus/Network para evitar
+                        # o mascaramento furtivo (silencing) de erros estruturais durante o loop.
                         except Exception as e:
                             pass
 
-                # # --- ADICIONE ESTE PRINT PARA DEBUG ---
-                # pressao_kivy = self.tags.get('co.pressao_reservatorio', 0.0)
-                # tensao_kivy = self.tags.get('co.tensao_rs', 0.0)
-                # habilita_kivy = self.tags.get('co.habilita', 0.0)
-                
-                # print(f"[KIVY SCADA] Lendo -> Habilita: {habilita_kivy} | Tensão RS: {tensao_kivy:.1f} | Pressão: {pressao_kivy:.2f}")
-                
-                
                 self.app.db.log_reading(self.tags, self.tags_addrs)
                 elapsed = time.time() - start_time
                 if elapsed < tickrate: time.sleep(tickrate - elapsed)
@@ -349,13 +467,17 @@ class ModbusController:
 
     def _run_simulator_server(self, ip, port):
         """
-        Este método rodará isolado na simulator_thread.
+        Inicia a classe orquestradora do simulador encapsulado, delegando o ciclo
+        físico/termodinâmico para escopo independente.
+
+        Args:
+            ip (str): IP de vinculação do servidor local (Binding).
+            port (int): Porta para Binding.
         """
         try:
             self.simulator_server = CompressorSimulator(host=ip, port=port)
             self.simulator_server.start()
             
-            # Mantém a thread viva enquanto o servidor estiver rodando
             while getattr(self.simulator_server, 'running', False):
                 time.sleep(1.0)
                 
