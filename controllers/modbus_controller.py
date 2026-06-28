@@ -93,13 +93,14 @@ class ModbusController:
             return False
 
     def comandoMotor(self, commandType):
-        """Liga ou desliga o motor via Modbus TCP.
+        """Liga ou desliga o motor.
 
         commandType = 1 -> ligar
         commandType = 0 -> desligar
 
-        O método funciona tanto para o CLP real quanto para o CLP simulado
-        externo. A diferença agora é somente o IP/porta da conexão.
+        No modo simulação, não existe comunicação Modbus real. Por isso,
+        o comando apenas altera as tags internas usadas pelo simulador.
+        No modo real, o comando é enviado ao CLP pelo registrador correto.
         """
         if not self.is_connected:
             self.app.db.log_event('erro', 'Tentativa de comando motor sem conexão')
@@ -107,35 +108,62 @@ class ModbusController:
 
         commandType = int(commandType)
 
+        if self.mode == 'simulation':
+            with self.lock:
+                self.tags['co.habilita'] = float(commandType)
+
+                # Se nenhuma partida foi selecionada, usa Direta como padrão.
+                if self.tags.get('co.sel_driver', 0) == 0:
+                    self.tags['co.sel_driver'] = 3.0
+
+                # Se for inversor e a referência ainda estiver zerada,
+                # usa 20 Hz como valor inicial para o motor sair do zero.
+                if self.tags.get('co.sel_driver', 0) == 2 and self.tags.get('co.freq_ref', 0) == 0:
+                    self.tags['co.freq_ref'] = 20.0
+
+            tipo_nome = {0: 'Indefinida', 1: 'Soft-start', 2: 'Inversor', 3: 'Direta'}
+            tipo = int(self.tags.get('co.sel_driver', 0))
+            acao = 'LIGADO' if commandType == 1 else 'DESLIGADO'
+            self.app.db.log_event('comando', f'[COMPRESSOR] Simulação: Motor {acao} - Partida: {tipo_nome.get(tipo, "Desconhecida")}')
+            return True
+            
         try:
             with self.lock:
                 if not self.client:
                     self.app.db.log_event('erro', 'Cliente Modbus não inicializado')
                     return False
 
-                # Tipo de partida selecionado: 1=Soft, 2=Inversor, 3=Direta
-                tipo_regs = self.client.read_holding_registers(1324, 1)
-                tipo_partida = tipo_regs[0] if tipo_regs else int(self.tags.get('co.sel_driver', 3) or 3)
-
-                startTypeDictionary = {
-                    1: 1316,  # Softstarter
-                    2: 1312,  # Inversor
-                    3: 1319,  # Partida direta
-                }
-
-                endereco_comando = startTypeDictionary.get(tipo_partida, 1319)
+                # Lê qual tipo de partida está selecionada
+                tipo_partida_regs = self.client.read_holding_registers(1216, 1)
+                if not tipo_partida_regs:
+                    self.app.db.log_event('erro', 'Falha ao ler tipo de partida')
+                    return False
+                    
+                tipo_partida = tipo_partida_regs[0]
+            
+            # Endereços de comando para cada tipo de partida
+            startTypeDictionary = {
+                0: 1319,  # Sem partida definida - usa direta
+                1: 1316,  # Softstarter
+                2: 1312,  # Inversor
+                3: 1319,  # Partida direta
+            }
+            
+            endereco_comando = startTypeDictionary.get(tipo_partida, 1319)
+            
+            with self.lock:
                 success = self.client.write_single_register(endereco_comando, commandType)
-
+                
             if success:
-                tipo_nome = {1: 'Softstarter', 2: 'Inversor', 3: 'Direta'}
+                tipo_nome = {0: 'Indefinida', 1: 'Softstarter', 2: 'Inversor', 3: 'Direta'}
                 acao = 'LIGADO' if commandType == 1 else 'DESLIGADO'
-                self.tags['co.habilita'] = float(commandType)
                 self.app.db.log_event('comando', f'[COMPRESSOR] Motor {acao} - Partida: {tipo_nome.get(tipo_partida, "Desconhecida")}')
+                self.tags['co.habilita'] = float(commandType)
                 return True
-
-            self.app.db.log_event('erro', f'Falha ao enviar comando motor (tipo partida: {tipo_partida})')
-            return False
-
+            else:
+                self.app.db.log_event('erro', f'Falha ao enviar comando motor (tipo partida: {tipo_partida})')
+                return False
+                
         except Exception as e:
             self.app.db.log_event('erro', f'Erro no comando motor: {e}')
             print(f"Erro no comando motor: {e}")
@@ -170,48 +198,36 @@ class ModbusController:
     def _initialize_tags(self): self.tags = {tag: 0.0 for tag in self.tags_addrs.keys()}
 
     def connect(self, mode, ip='127.0.0.1', port=502):
-        """Conecta o supervisório a um servidor Modbus TCP.
-
-        Modo simulation:
-            conecta no CLP simulado externo, rodando em outro terminal.
-            Padrão: 127.0.0.1:5020
-
-        Modo real:
-            conecta no CLP real da bancada.
-            Padrão aceito: 10.15.30.182:502
-        """
         self.disconnect()
         self.mode = mode
 
         if mode == 'simulation':
-            ip = '127.0.0.1'
-            port = 5020
-        else:
-            # Validação do IP real da bancada
-            if ip != '10.15.30.182':
-                return False, "Erro: IP Inválido. Conecte-se a 10.15.30.182"
+            self.is_connected = True
+            self.polling_thread = threading.Thread(target=self._simulation_loop, daemon=True)
+            self.polling_thread.start()
+            return True, "Conectado ao Simulador Interno"
 
-            # Teste de ping apenas no CLP real
-            param = '-n 1' if platform.system().lower() == 'windows' else '-c 1'
-            redir = '> NUL 2>&1' if platform.system().lower() == 'windows' else '> /dev/null 2>&1'
-            if os.system(f"ping {param} {ip} {redir}") != 0:
-                return False, f"Falha no Ping: Host {ip} inacessível."
+        # Validação do IP
+        if ip != '10.15.30.182':
+            return False, "Erro: IP Inválido. Conecte-se a 10.15.30.182"
 
+        # Teste de ping
+        param = '-n 1' if platform.system().lower() == 'windows' else '-c 1'
+        redir = '> NUL 2>&1' if platform.system().lower() == 'windows' else '> /dev/null 2>&1'
+        if os.system(f"ping {param} {ip} {redir}") != 0:
+            return False, f"Falha no Ping: Host {ip} inacessível."
+
+        # Tentativa de conexão Modbus TCP
         try:
             self.client = ModbusClient(host=ip, port=port, timeout=3)
-            self.is_connected = self.client.open()
+            self.is_connected = self.client.open()  # <-- Correção aqui
 
             if self.is_connected:
                 self.polling_thread = threading.Thread(target=self._real_data_polling_loop, daemon=True)
                 self.polling_thread.start()
-                if mode == 'simulation':
-                    return True, f"Conectado ao CLP Simulado em {ip}:{port}"
-                return True, f"Conectado ao CLP em {ip}:{port}"
-
-            if mode == 'simulation':
-                return False, "Falha ao conectar ao CLP Simulado."
-            return False, f"Falha na conexão Modbus com {ip}:{port}"
-
+                return True, f"Conectado ao CLP em {ip}"
+            else:
+                return False, f"Falha na conexão Modbus com {ip}"
         except Exception as e:
             return False, f"Erro de conexão: {e}"
 
@@ -231,65 +247,45 @@ class ModbusController:
     
 
     def write_tag(self, tag, value):
-        if not self.is_connected or tag not in self.tags_addrs:
-            return False
-
-        info = self.tags_addrs[tag]
-        addr = info['address']
-
+        if not self.is_connected or tag not in self.tags_addrs: return
+        with self.lock: self.tags[tag] = float(value)
+        if self.mode == 'simulation':
+            # Log da ação mesmo em simulação
+            self.app.db.log_event('comando', f'[COMPRESSOR] Simulação: Tag {tag} escrita com valor {value}')
+            return
+        
+        info, addr = self.tags_addrs[tag], self.tags_addrs[tag]['address']
         try:
+            # Correção: Substituído 'write_register' por 'write_single_register'
             with self.lock:
-                if not self.client:
-                    self.app.db.log_event('erro', f'Cliente Modbus não inicializado ao escrever {tag}')
-                    return False
-
                 if info.get('bit') is not None:
                     regs = self.client.read_holding_registers(addr, 1)
                     if regs:
                         reg_val = regs[0]
-                        bit = info['bit']
-                        new_val = reg_val | (1 << bit) if int(value) == 1 else reg_val & ~(1 << bit)
-                        success = self.client.write_single_register(addr, new_val)
+                        new_val = reg_val | (1 << info['bit']) if value == 1 else reg_val & ~(1 << info['bit'])
+                        self.client.write_single_register(addr, new_val)
                     else:
+                        print(f"Erro de escrita Modbus: Falha ao ler o registrador {addr} para modificar o bit.")
                         self.app.db.log_event('erro', f"Falha de leitura ao preparar escrita no bit {info['bit']} do registrador {addr}")
-                        return False
                 else:
-                    div = info.get('div', 1)
-                    success = self.client.write_single_register(addr, int(float(value) * div))
-
-                if success:
-                    self.tags[tag] = float(value)
-                    self.app.db.log_event('comando', f'[COMPRESSOR] Tag {tag} escrita com valor {value}')
-                    return True
-
-                self.app.db.log_event('erro', f'Falha de escrita Modbus em {tag}')
-                return False
-
+                    self.client.write_single_register(addr, int(value * info.get('div', 1)))
+                
+                # CORREÇÃO 1: Adicionado o prefixo [COMPRESSOR] ao log de comando
+                self.app.db.log_event('comando', f'[COMPRESSOR] Tag {tag} escrita com valor {value}')
         except (ConnectionException, AttributeError) as e:
-            print(f"Erro de escrita Modbus: {e}. Desconectando...")
-            self.is_connected = False
+            print(f"Erro de escrita Modbus: {e}. Desconectando..."); self.is_connected = False
             self.app.db.log_event('erro', f"Falha de conexão na escrita em {tag}")
-            return False
         except Exception as e:
-            print(f"Erro de escrita Modbus: {e}")
-            self.app.db.log_event('erro', f"Falha de escrita em {tag}: {e}")
-            return False
+            print(f"Erro de escrita Modbus: {e}"); self.app.db.log_event('erro', f"Falha de escrita em {tag}")
 
     def troca_partida(self, tipo_partida):
-        """Seleciona o tipo de partida no CLP.
-
-        1 = Soft-start
-        2 = Inversor
-        3 = Direta
-        """
-        if not self.is_connected:
-            return False
-
         if self.get_motor_status():
             return False
-
-        return self.write_tag('co.sel_driver', int(tipo_partida))
-
+        
+        with self.lock:
+            self.client.write_single_register(1324,tipo_partida)
+        return True
+    
     def _converter_float32(self, regs):
         """Converte dois registradores Modbus de 16 bits em float32.
 
@@ -306,7 +302,7 @@ class ModbusController:
         return struct.unpack('>f', raw)[0]
 
     def _real_data_polling_loop(self):
-        while self.is_connected and self.mode in ('real', 'simulation'):
+        while self.is_connected and self.mode == 'real':
             start_time = time.time()
             try:
                 with self.lock:

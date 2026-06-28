@@ -1,0 +1,21 @@
+{
+  "network": {
+    "real": {
+      "ip": "10.15.30.182",
+      "port": 502,
+      "tickrate": 1.0,
+      "timeout": 3
+    },
+    "simulation": {
+      "ip": "127.0.0.1",
+      "port": 5020,
+      "tickrate": 1.0
+    }
+  },
+  "tipos_partida": {
+    "0": "Indefinida",
+    "1": "Softstarter",
+    "2": "Inversor",
+    "3": "Direta"
+  }
+}
