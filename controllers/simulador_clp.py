@@ -176,7 +176,7 @@ class CompressorSimulator:
             self._write_tag("sys.estado_direta", 1 if (estado_motor_interno and sel_driver == 3) else 0)
             
             # Escreve as grandezas contínuas calculadas pelos modelos físicos
-            self._write_tag("co.pressao_reservatorio", self.__tank.getPressao())
+            self._write_tag("co.pressao", self.__tank.getPressao())
             self._write_tag("co.encoder", self.__tank.motor.getRotacao())
             self._write_tag("co.torque", self.__tank.motor.getTorque())
             self._write_tag("co.temp_carc", self.__tank.motor.getTemperature() + random.uniform(-1, 1))
