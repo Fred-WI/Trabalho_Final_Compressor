@@ -464,27 +464,39 @@ class DashboardScreen(Screen):
         
         # CORREÇÃO PRINCIPAL: Verifica o estado real do motor
         motor_ligado = modbus.get_motor_status()  # Usa o novo método
-        
+
         # Lógica correta dos botões:
         # - Se motor está DESLIGADO: habilita botão LIGAR, desabilita botão DESLIGAR
         # - Se motor está LIGADO: desabilita botão LIGAR, habilita botão DESLIGAR
         # - Se partida não foi escolhida: desabilita botão LIGAR
-        
+
         partida_escolhida = self.spinner_partida.text != 'Escolha Partida'
-        
+
         if motor_ligado:
             # Motor está LIGADO
-            self.btn_ligar.disabled = True  # Não pode ligar novamente
-            self.btn_desligar.disabled = False  # Pode desligar
+            self.btn_ligar.disabled = True
+            self.btn_desligar.disabled = False
+
+            # NOVO
+            self.spinner_partida.disabled = True
+            # self.spinner_motor.disabled = True
+
             self.motor_status_label.text = f'MOTOR LIGADO ({self.spinner_partida.text})'
             self.motor_status_label.color = CORES['sucesso']
+
         else:
             # Motor está DESLIGADO
-            self.btn_ligar.disabled = not partida_escolhida  # Só pode ligar se partida foi escolhida
-            self.btn_desligar.disabled = True  # Não pode desligar se já está desligado
+            self.btn_ligar.disabled = not partida_escolhida
+            self.btn_desligar.disabled = True
+
+            # NOVO
+            self.spinner_partida.disabled = False
+            # self.spinner_motor.disabled = False
+
             self.motor_status_label.text = 'MOTOR DESLIGADO'
             self.motor_status_label.color = CORES['erro']
-        
+            
+                
         # Atualiza estado das válvulas
         #for i, switch in self.valves.items():
         #    state = modbus.read_tag(f'co.xv{i}') == 1
@@ -522,27 +534,29 @@ class DashboardScreen(Screen):
                 return
                 
             # Confirmação para ligar
-            content = BoxLayout(orientation='vertical', spacing=15, padding=15)
-            # content.add_widget(Label(text=f'Tem certeza que deseja LIGAR o motor?\n'
-            #                             f'Tipo de Partida: {self.spinner_partida.text}\n'
-            #                             f'Motor: {self.spinner_motor.text}', 
-            #                     font_size=sp(16)))
+            # content = BoxLayout(orientation='vertical', spacing=15, padding=15)
+            # # content.add_widget(Label(text=f'Tem certeza que deseja LIGAR o motor?\n'
+            # #                             f'Tipo de Partida: {self.spinner_partida.text}\n'
+            # #                             f'Motor: {self.spinner_motor.text}', 
+            # #                     font_size=sp(16)))
 
-            content.add_widget(Label(text=f'Tem certeza que deseja LIGAR o motor?\n'
-                            f'Tipo de Partida: {self.spinner_partida.text}', 
-                    font_size=sp(16)))
+            # content.add_widget(Label(text=f'Tem certeza que deseja LIGAR o motor?\n'
+            #                 f'Tipo de Partida: {self.spinner_partida.text}', 
+            #         font_size=sp(16)))
             
-            btn_box = BoxLayout(spacing=10, size_hint_y=None, height=sp(40))
-            popup = Popup(title='Confirmação de Ação', content=content, size_hint=(None, None), 
-                        size=(sp(400), sp(200)), title_align='center')
-            btn_confirm = HoverButton(text='Confirmar', 
-                                    on_press=lambda x: self.do_toggle_motor('LIGAR', popup))
-            btn_cancel = HoverButton(text='Cancelar', on_press=popup.dismiss, 
-                                background_color_normal=(0.7,0.7,0.7,1))
-            btn_box.add_widget(btn_confirm)
-            btn_box.add_widget(btn_cancel)
-            content.add_widget(btn_box)
-            popup.open()
+            # btn_box = BoxLayout(spacing=10, size_hint_y=None, height=sp(40))
+            # popup = Popup(title='Confirmação de Ação', content=content, size_hint=(None, None), 
+            #             size=(sp(400), sp(200)), title_align='center')
+            # btn_confirm = HoverButton(text='Confirmar', 
+            #                         on_press=lambda x: self.do_toggle_motor('LIGAR', popup))
+            # btn_cancel = HoverButton(text='Cancelar', on_press=popup.dismiss, 
+            #                     background_color_normal=(0.7,0.7,0.7,1))
+            # btn_box.add_widget(btn_confirm)
+            # btn_box.add_widget(btn_cancel)
+            # content.add_widget(btn_box)
+            # popup.open()
+
+            self.do_toggle_motor('LIGAR')
             
         elif instance.text == 'DESLIGAR':
             # Verifica se o motor já está desligado
