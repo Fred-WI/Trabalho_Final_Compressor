@@ -1,3 +1,9 @@
+import logging
+logger = logging.getLogger("SCADA_ModbusController")
+
+logging.getLogger("pyModbusTCP.client").setLevel(logging.WARNING)
+logging.getLogger("pyModbusTCP.server").setLevel(logging.WARNING)
+
 import os
 import platform
 import random
@@ -7,45 +13,106 @@ import time
 from pyModbusTCP.client import ModbusClient
 from pymodbus.exceptions import ConnectionException
 
+from controllers.config_load import load_tags, load_configs
+
+from controllers.simulador_clp import CompressorSimulator
+
+
 class ModbusController:
     def __init__(self, app):
-        self.app = app; self.mode = None; self.client = None; self.is_connected = False
-        self.lock = threading.Lock(); self.polling_thread = None
-        self._build_tag_map(); self._initialize_tags()
+        self.app = app
+        self.mode = None
+        self.client = None
+        self.is_connected = False
+        self.lock = threading.Lock()
 
-    def _build_tag_map(self):
-        self.tags_addrs = {
-            "ro.encoder": {"type":"FP","address":884,"div":1,"unit":"Hz","db_col":"rotacao"}, 
-            "ro.torque": {"type":"FP","address":1420,"div":1,"unit":"N·m","db_col":"torque"},
-            "ro.pressostato": {"type":"4X","address":710,"div":1,"unit":""}, 
-            "ro.temp_carc": {"type":"FP","address":706,"div":10,"unit":"°C","db_col":"temp_carc"},
-            "ro.temp_r": {"type":"FP","address":700,"div":10,"unit":"°C"}, 
-            "ro.temp_s": {"type":"FP","address":702,"div":10,"unit":"°C"},
-            "ro.temp_t": {"type":"FP","address":704,"div":10,"unit":"°C"}, 
-            "ro.corrente_r": {"type":"4X","address":840,"div":10,"unit":"A"},
-            "ro.corrente_s": {"type":"4X","address":841,"div":10,"unit":"A"}, 
-            "ro.corrente_t": {"type":"4X","address":842,"div":10,"unit":"A"},
-            "ro.corrente_n": {"type":"4X","address":843,"div":10,"unit":"A"}, 
-            "ro.fit02": {"type":"FP","address":716,"div":1,"unit":"L/min","db_col":"vazao_fit02"},
-            "ro.fit03": {"type":"FP","address":718,"div":1,"unit":"L/min","db_col":"vazao_fit03"}, 
-            "ro.tensao_rs": {"type":"4X","address":847,"div":10,"unit":"V"},
-            "ro.tensao_st": {"type":"4X","address":848,"div":10,"unit":"V"}, 
-            "ro.tensao_tr": {"type":"4X","address":849,"div":10,"unit":"V"},
-            "ro.corrente_media": {"type":"4X","address":845,"div":10,"unit":"A"}, 
-            "ro.pressao": {"type":"FP","address":714,"div":1,"unit":"bar","db_col":"pressao"},
-            'ro.ativa_total': {'type':'4X','address':855,'div':1,'unit':'W',"db_col":"pot_ativa"}, 
-            'ro.reativa_total': {'type':'4X','address':859,'div':1,'unit':'VAR',"db_col":"pot_reativa"},
-            'ro.aparente_total': {'type':'4X','address':863,'div':1,'unit':'VA',"db_col":"pot_aparente"}, 
-            'ro.fp_total': {'type':'4X','address':871,'div':1000,'unit':''},
-            'ro.frequencia': {'type':'4X','address':830,'div':100,'unit':'Hz'}, 
-            "co.xv1": {"type":"4X","address":712,"bit":0}, "co.xv2": {"type":"4X","address":712,"bit":1},
-            "co.xv3": {"type":"4X","address":712,"bit":2}, "co.xv4": {"type":"4X","address":712,"bit":3},
-            "co.xv5": {"type":"4X","address":712,"bit":4}, "co.xv6": {"type":"4X","address":712,"bit":5},
-            "co.tipo_motor": {"type":"4X","address":708}, "co.sel_driver": {"type":"4X","address":1324},
-            "co.freq_ref": {"type":"4X","address":1313,"div":1,"unit":"Hz"},
-            "co.habilita": {"type":"4X","address":1328,"bit":1},
-        }
+        self.polling_thread = None
+        self.simulator_server = None
+        self.simulator_thread = None
+
+        self._build_tag_map()
+        self._build_config_map()
+        self._initialize_tags()
+
+
+    # Inicialização de configs_map, tags_addrs e tags
+    def _build_config_map(self): self.configs_map = load_configs('config/app_config.json')
+    def _build_tag_map(self): self.tags_addrs = load_tags('config/tags_compressor.json')
+    def _initialize_tags(self): self.tags = {tag: 0.0 for tag in self.tags_addrs.keys()}
     
+    # Conexão
+    def connect(self, mode, ip='127.0.0.1', port=502):
+        self.disconnect()
+        self.mode = mode
+
+        net_cfg = self.configs_map["network"].get(mode, self.configs_map["network"]["simulation"])
+        target_ip = ip if (ip and ip.strip() != "") else net_cfg["ip"]
+        port = net_cfg["port"]
+        timeout = net_cfg.get("timeout", 3)
+
+        if mode == 'simulation':
+            logger.info("Iniciando conexão com o Servidor Modbus Simulado local em outra Thread...")
+            
+            self.simulator_thread = threading.Thread(
+                target= self._run_simulator_server,
+                args=(target_ip, port),
+                daemon=True
+            )
+            
+            self.simulator_thread.start()
+            time.sleep(0.5)
+
+        # Teste de ping
+        if mode != 'simulation':
+            param = '-n 1' if platform.system().lower() == 'windows' else '-c 1'
+            redir = '> NUL 2>&1' if platform.system().lower() == 'windows' else '> /dev/null 2>&1'
+            if os.system(f"ping {param} {ip} {redir}") != 0:
+                return False, f"Falha no Ping: Host {ip} inacessível."
+
+        # Tentativa de conexão Modbus TCP
+        try:
+            self.client = ModbusClient(host=target_ip, port=port, timeout=timeout)
+            self.is_connected = self.client.open() 
+
+            if self.is_connected:
+                self.polling_thread = threading.Thread(target=self._real_data_polling_loop, daemon=True)
+                self.polling_thread.start()
+                return True, f"Conectado ao CLP em {ip}"
+            else:
+                self._stop_simulator()
+                return False, f"Falha na conexão Modbus com {ip}"
+        except Exception as e:
+            self._stop_simulator()
+            return False, f"Erro de conexão: {e}"
+
+    def _stop_simulator(self):
+        """Para o servidor do professor e aguarda a thread morrer."""
+        if self.simulator_server:
+            self.simulator_server.stop()
+            self.simulator_server = None
+            
+        if self.simulator_thread and self.simulator_thread.is_alive():
+            self.simulator_thread.join(timeout=1.0)
+            self.simulator_thread = None
+
+    def disconnect(self):
+        self.is_connected = False
+        
+        # 1. Para a leitura de dados do SCADA
+        if self.polling_thread and self.polling_thread.is_alive():
+            self.polling_thread.join(timeout=1.5)
+            self.polling_thread = None
+            
+        # 2. Fecha a conexão do Cliente
+        if self.client:
+            self.client.close()
+            self.client = None
+            
+        self.mode = None
+        self._initialize_tags()
+        
+        # 3. Derruba a Thread da simulação (se houver)
+        self._stop_simulator()
 
     def get_motor_status(self):
         """Retorna True se o motor estiver ligado.
@@ -54,42 +121,36 @@ class ModbusController:
         No modo simulação, o estado é lido diretamente da tag interna
         co.habilita, pois não existe self.client no simulador.
         """
-        if not self.is_connected:
-            return False
-
-        if self.mode == 'simulation':
-            return self.tags.get('co.habilita', 0) == 1
+        if not self.is_connected: return False
             
         try:
             with self.lock:
-                if not self.client:
-                    return False
+                if not self.client: return False
 
                 # Lê qual tipo de partida está selecionada no CLP
-                indica_driver_regs = self.client.read_holding_registers(1216, 1)
-                if not indica_driver_regs:
-                    return False
-                    
+                addr_indica = self.tags_addrs["sys.indica_driver"]["address"]
+                indica_driver_regs = self.client.read_holding_registers(addr_indica, 1)
+                
+                if not indica_driver_regs: return False    
                 indica_driver = indica_driver_regs[0]
+
+                mapa_tags_estado = {
+                    1: "sys.estado_softstarter",
+                    2: "sys.estado_inversor",
+                    3: "sys.estado_direta"
+                }
+
+                tag_alvo = mapa_tags_estado.get(indica_driver, "sys.estado_direta")
+                addr_estado = self.tags_addrs[tag_alvo]["address"]
                 
                 # Lê o estado atual baseado no tipo de partida
-                if indica_driver == 1:      # Softstarter
-                    estado_regs = self.client.read_holding_registers(886, 1)
-                elif indica_driver == 2:    # Inversor
-                    estado_regs = self.client.read_holding_registers(888, 1)
-                elif indica_driver == 3:    # Partida direta
-                    estado_regs = self.client.read_holding_registers(890, 1)
-                else:                       # Padrão - partida direta
-                    estado_regs = self.client.read_holding_registers(890, 1)
-                    
+                estado_regs = self.client.read_holding_registers(addr_estado, 1)
                 if estado_regs:
                     return estado_regs[0] == 1
-                    
             return False
             
         except Exception as e:
             self.app.db.log_event('erro', f'Erro ao verificar estado do motor: {e}')
-            print(f"Erro ao verificar estado do motor: {e}")
             return False
 
     def comandoMotor(self, commandType):
@@ -107,34 +168,15 @@ class ModbusController:
             return False
 
         commandType = int(commandType)
-
-        if self.mode == 'simulation':
-            with self.lock:
-                self.tags['co.habilita'] = float(commandType)
-
-                # Se nenhuma partida foi selecionada, usa Direta como padrão.
-                if self.tags.get('co.sel_driver', 0) == 0:
-                    self.tags['co.sel_driver'] = 3.0
-
-                # Se for inversor e a referência ainda estiver zerada,
-                # usa 20 Hz como valor inicial para o motor sair do zero.
-                if self.tags.get('co.sel_driver', 0) == 2 and self.tags.get('co.freq_ref', 0) == 0:
-                    self.tags['co.freq_ref'] = 20.0
-
-            tipo_nome = {0: 'Indefinida', 1: 'Soft-start', 2: 'Inversor', 3: 'Direta'}
-            tipo = int(self.tags.get('co.sel_driver', 0))
-            acao = 'LIGADO' if commandType == 1 else 'DESLIGADO'
-            self.app.db.log_event('comando', f'[COMPRESSOR] Simulação: Motor {acao} - Partida: {tipo_nome.get(tipo, "Desconhecida")}')
-            return True
+        tipos_nome = self.configs_map["tipos_partida"]
             
         try:
             with self.lock:
-                if not self.client:
-                    self.app.db.log_event('erro', 'Cliente Modbus não inicializado')
-                    return False
+                if not self.client: return False
 
-                # Lê qual tipo de partida está selecionada
-                tipo_partida_regs = self.client.read_holding_registers(1216, 1)
+                addr_indica = self.tags_addrs["sys.indica_driver"]["address"]
+
+                tipo_partida_regs = self.client.read_holding_registers(addr_indica, 1)
                 if not tipo_partida_regs:
                     self.app.db.log_event('erro', 'Falha ao ler tipo de partida')
                     return False
@@ -142,276 +184,180 @@ class ModbusController:
                 tipo_partida = tipo_partida_regs[0]
             
             # Endereços de comando para cada tipo de partida
-            startTypeDictionary = {
-                0: 1319,  # Sem partida definida - usa direta
-                1: 1316,  # Softstarter
-                2: 1312,  # Inversor
-                3: 1319,  # Partida direta
+            mapa_tags_cmd = {
+                0: "sys.cmd_direta",
+                1: "sys.cmd_softstarter",
+                2: "sys.cmd_inversor",
+                3: "sys.cmd_direta"
             }
             
-            endereco_comando = startTypeDictionary.get(tipo_partida, 1319)
+            tag_cmd_alvo = mapa_tags_cmd.get(tipo_partida, "sys.cmd_direta")
+            endereco_comando = self.tags_addrs[tag_cmd_alvo]["address"]
             
             with self.lock:
                 success = self.client.write_single_register(endereco_comando, commandType)
                 
             if success:
-                tipo_nome = {0: 'Indefinida', 1: 'Softstarter', 2: 'Inversor', 3: 'Direta'}
                 acao = 'LIGADO' if commandType == 1 else 'DESLIGADO'
-                self.app.db.log_event('comando', f'[COMPRESSOR] Motor {acao} - Partida: {tipo_nome.get(tipo_partida, "Desconhecida")}')
+                nome_partida = tipos_nome.get(str(tipo_partida), "Desconhecida")
+                self.app.db.log_event('comando', f'[COMPRESSOR] Motor {acao} - Partida: {nome_partida}')
                 self.tags['co.habilita'] = float(commandType)
                 return True
-            else:
-                self.app.db.log_event('erro', f'Falha ao enviar comando motor (tipo partida: {tipo_partida})')
-                return False
+            return False
                 
         except Exception as e:
             self.app.db.log_event('erro', f'Erro no comando motor: {e}')
-            print(f"Erro no comando motor: {e}")
             return False
 
     def clique_motor(self):
         """
         Método para alternar estado do motor baseado no estado atual
         """
-        if not self.is_connected:
-            return False
-            
-        # Verifica o estado atual
+        if not self.is_connected: return False
         motor_ligado = self.get_motor_status()
-        
-        # Alterna o estado: se está ligado, desliga; se está desligado, liga
         novo_comando = 0 if motor_ligado else 1
-        
         return self.comandoMotor(novo_comando)
 
-
-    def muda_motor_ui_on(self):
-        """Atualiza a UI quando o motor é ligado"""
-        # Esta função pode ser chamada para atualizar elementos visuais específicos
-        pass
-        
-    def muda_motor_ui_off(self):
-        """Atualiza a UI quando o motor é desligado"""
-        # Esta função pode ser chamada para atualizar elementos visuais específicos
-        pass
-
-    def _initialize_tags(self): self.tags = {tag: 0.0 for tag in self.tags_addrs.keys()}
-
-    def connect(self, mode, ip='127.0.0.1', port=502):
-        self.disconnect()
-        self.mode = mode
-
-        if mode == 'simulation':
-            self.is_connected = True
-            self.polling_thread = threading.Thread(target=self._simulation_loop, daemon=True)
-            self.polling_thread.start()
-            return True, "Conectado ao Simulador Interno"
-
-        # Validação do IP
-        if ip != '10.15.30.182':
-            return False, "Erro: IP Inválido. Conecte-se a 10.15.30.182"
-
-        # Teste de ping
-        param = '-n 1' if platform.system().lower() == 'windows' else '-c 1'
-        redir = '> NUL 2>&1' if platform.system().lower() == 'windows' else '> /dev/null 2>&1'
-        if os.system(f"ping {param} {ip} {redir}") != 0:
-            return False, f"Falha no Ping: Host {ip} inacessível."
-
-        # Tentativa de conexão Modbus TCP
-        try:
-            self.client = ModbusClient(host=ip, port=port, timeout=3)
-            self.is_connected = self.client.open()  # <-- Correção aqui
-
-            if self.is_connected:
-                self.polling_thread = threading.Thread(target=self._real_data_polling_loop, daemon=True)
-                self.polling_thread.start()
-                return True, f"Conectado ao CLP em {ip}"
-            else:
-                return False, f"Falha na conexão Modbus com {ip}"
-        except Exception as e:
-            return False, f"Erro de conexão: {e}"
-
-    def disconnect(self):
-        self.is_connected = False
-        if self.polling_thread and self.polling_thread.is_alive():
-            self.polling_thread.join(timeout=1.5)
-        if self.client:
-            self.client.close()
-        self.client = None
-        self.mode = None
-        self._initialize_tags()
-        
-    def read_tag(self, tag):
-        with self.lock: return self.tags.get(tag, 0)
-    def get_tag_info(self, tag): return self.tags_addrs.get(tag, {})
-    
-
-    def write_tag(self, tag, value):
-        if not self.is_connected or tag not in self.tags_addrs: return
-        with self.lock: self.tags[tag] = float(value)
-        if self.mode == 'simulation':
-            # Log da ação mesmo em simulação
-            self.app.db.log_event('comando', f'[COMPRESSOR] Simulação: Tag {tag} escrita com valor {value}')
-            return
-        
-        info, addr = self.tags_addrs[tag], self.tags_addrs[tag]['address']
-        try:
-            # Correção: Substituído 'write_register' por 'write_single_register'
-            with self.lock:
-                if info.get('bit') is not None:
-                    regs = self.client.read_holding_registers(addr, 1)
-                    if regs:
-                        reg_val = regs[0]
-                        new_val = reg_val | (1 << info['bit']) if value == 1 else reg_val & ~(1 << info['bit'])
-                        self.client.write_single_register(addr, new_val)
-                    else:
-                        print(f"Erro de escrita Modbus: Falha ao ler o registrador {addr} para modificar o bit.")
-                        self.app.db.log_event('erro', f"Falha de leitura ao preparar escrita no bit {info['bit']} do registrador {addr}")
-                else:
-                    self.client.write_single_register(addr, int(value * info.get('div', 1)))
-                
-                # CORREÇÃO 1: Adicionado o prefixo [COMPRESSOR] ao log de comando
-                self.app.db.log_event('comando', f'[COMPRESSOR] Tag {tag} escrita com valor {value}')
-        except (ConnectionException, AttributeError) as e:
-            print(f"Erro de escrita Modbus: {e}. Desconectando..."); self.is_connected = False
-            self.app.db.log_event('erro', f"Falha de conexão na escrita em {tag}")
-        except Exception as e:
-            print(f"Erro de escrita Modbus: {e}"); self.app.db.log_event('erro', f"Falha de escrita em {tag}")
-
     def troca_partida(self, tipo_partida):
-        if self.get_motor_status():
+        if self.get_motor_status(): return False
+        
+        addr_troca = self.tags_addrs["sys.cmd_troca_partida"]["address"]
+        with self.lock:
+            self.client.write_single_register(addr_troca, tipo_partida)
+        return True
+
+    def write_tag(self, tag_name, value):
+        if tag_name not in self.tags_addrs:
+            logger.warning(f"Tentativa de escrita em tag inexistente: {tag_name}")
             return False
         
-        with self.lock:
-            self.client.write_single_register(1324,tipo_partida)
-        return True
-    
-    def _converter_float32(self, regs):
+        tag_info = self.tags_addrs[tag_name]
+        if tag_info.get("rw") == "R":
+            logger.warning(f"Tentativa de escrita na tag Somente Leitura: {tag_name}")
+            return False
+        
+        address = tag_info["address"]
+        div = tag_info.get("div", 1)
+
+        if not self.is_connected: return
+
+        with self.lock: 
+            self.tags[tag_name] = float(value)
+        
+        try:
+            with self.lock:
+                bit_val = tag_info.get('bit')
+                if bit_val != "" and bit_val is not None:
+                    bit = int(bit_val)
+                    regs = self.client.read_holding_registers(address, 1)
+                    if regs:
+                        reg_val = regs[0]
+                        new_val = reg_val | (1 << bit) if value == 1 else reg_val & ~(1 << bit)
+                        self.client.write_single_register(address, new_val)
+                    else:
+                        logger.error(f"Falha de leitura ao preparar escria no bit {bit}  do registrador {address}")
+                elif tag_info['type'] == 'FP':
+                    regs_to_write = self._float32_to_registers(value / div)
+                    self.client.write_multiple_registers(address, regs_to_write)
+                else:
+                    self.client.write_single_register(address, int(value * div))
+            
+                self.app.db.log_event('comando', f'[COMPRESSOR] Tag {tag_name} escrita com valor {value}')
+                return True
+        except (ConnectionException, AttributeError) as e:
+            logger.error(f"Erro de escrita Modbus: {e}. Desconectando..."); self.is_connected = False
+            self.app.db.log_event('erro', f"Falha de conexão na escrita em {tag_name}")
+        except Exception as e:
+            logger.error(f"Erro de escrita Modbus: {e}")
+            self.app.db.log_event('erro', f"Falha de escrita em {tag_name}")
+        return False
+
+    def read_tag(self, tag): 
+        with self.lock: return self.tags.get(tag, 0)
+
+    def get_tag_info(self, tag): 
+        return self.tags_addrs.get(tag, {})
+
+    def _float32_to_registers(self, value):
+        """Converte um float32 do Python em dois registradores de 16 bits.
+        Faz o inverso exato da função _converter_float32_from_registers.
+        """
+        # Word order little: [low_word, high_word] -> high_word primeiro
+        import struct
+        raw_bytes = struct.pack('>f', float(value))
+        high_word = int.from_bytes(raw_bytes[0:2], byteorder='big')
+        low_word = int.from_bytes(raw_bytes[2:4], byteorder='big')
+        return [low_word, high_word]
+
+    def _float32_from_registers(self, regs):
         """Converte dois registradores Modbus de 16 bits em float32.
 
         A ordem abaixo mantém compatibilidade com a correção feita para substituir
         BinaryPayloadDecoder em versões novas do PyModbus. Caso a bancada use
         outra ordem de bytes/palavras, basta alterar esta função.
         """
-        import struct
-        if not regs or len(regs) < 2:
-            return 0.0
-
         # Word order little: [low_word, high_word] -> high_word primeiro
+        import struct
+        if not regs or len(regs) < 2: return 0.0
         raw = int(regs[1]).to_bytes(2, byteorder='big') + int(regs[0]).to_bytes(2, byteorder='big')
         return struct.unpack('>f', raw)[0]
 
     def _real_data_polling_loop(self):
-        while self.is_connected and self.mode == 'real':
+        tickrate = self.configs_map["network"].get(self.mode, self.configs_map["network"]["simulation"]).get("tickrate", 1.0)
+
+        while self.is_connected:
             start_time = time.time()
             try:
                 with self.lock:
-                    # Correção: Lógica de leitura ajustada para pyModbusTCP e bug de bit corrigido
                     for tag, info in self.tags_addrs.items():
-                        if tag.startswith('co_'):
-                            continue
-                        
                         addr, div, val = info["address"], info.get('div', 1), 0.0
                         try:
                             if info['type'] == '4X':
                                 regs = self.client.read_holding_registers(addr, 1)
-                                if regs:  # Leitura bem-sucedida, regs é uma lista (ex: [123])
-                                    bit = info.get("bit")
-                                    if bit is not None:
-                                        # Se for um bit, extrai o valor do bit (0 ou 1)
-                                        val = (regs[0] >> bit) & 1
+                                if regs:
+                                    bit_val = info.get("bit")
+                                    if bit_val != "" and bit_val is not None:
+                                        val = (regs[0] >> int(bit_val)) & 1
                                     else:
-                                        # Se for um registrador inteiro
                                         val = regs[0]
                             
                             elif info['type'] == 'FP':
                                 regs = self.client.read_holding_registers(addr, 2)
-                                if regs:  # Leitura bem-sucedida, regs é uma lista (ex: [16560, 29860])
-                                    val = self._converter_float32(regs)
+                                if regs:
+                                    val = self._float32_from_registers(regs)
                             
-                            # Atualiza o valor da tag
                             self.tags[tag] = val / div if div != 0 else val
-
                         except Exception as e:
-                            # Em caso de erro na leitura de uma tag específica, imprime e continua para a próxima
-                            print(f"Aviso: Falha ao ler a tag '{tag}'. Erro: {e}")
                             pass
-                self.app.db.log_reading(self.tags)
+
+                # # --- ADICIONE ESTE PRINT PARA DEBUG ---
+                # pressao_kivy = self.tags.get('co.pressao_reservatorio', 0.0)
+                # tensao_kivy = self.tags.get('co.tensao_rs', 0.0)
+                # habilita_kivy = self.tags.get('co.habilita', 0.0)
+                
+                # print(f"[KIVY SCADA] Lendo -> Habilita: {habilita_kivy} | Tensão RS: {tensao_kivy:.1f} | Pressão: {pressao_kivy:.2f}")
+                
+                
+                self.app.db.log_reading(self.tags, self.tags_addrs)
                 elapsed = time.time() - start_time
-                if elapsed < 1.0: time.sleep(1.0 - elapsed)
-            except (ConnectionException, AttributeError) as e: print(f"Polling Modbus falhou: {e}."); self.is_connected = False
-            except Exception as e: print(f"Erro inesperado no polling: {e}")
+                if elapsed < tickrate: time.sleep(tickrate - elapsed)
+            except (ConnectionException, AttributeError) as e: 
+                logger.error(f"Polling Modbus falhou: {e}.")
+                self.is_connected = False
+            except Exception as e: 
+                logger.error(f"Erro inesperado no polling: {e}")
 
-
-    def _simulation_loop(self):
-        dt = 1.0
-        self.tags['ro.temp_carc'] = 25.0
-        self.tags['ro.pressao'] = 1.0
-        self.tags['co.freq_ref'] = 20.0
-
-        while self.is_connected and self.mode == 'simulation':
-            with self.lock:
-                motor_on = self.tags.get('co.habilita', 0) == 1
-                tipo_partida = int(self.tags.get('co.sel_driver', 0))
-
-                # Define comportamento diferente para cada partida:
-                # 1 = Soft-start, 2 = Inversor, 3 = Direta.
-                if tipo_partida == 1:          # Soft-start
-                    target_rpm = 60.0
-                    aceleracao = 1.5
-                elif tipo_partida == 2:        # Inversor
-                    target_rpm = float(self.tags.get('co.freq_ref', 20.0))
-                    target_rpm = max(0.0, min(60.0, target_rpm))
-                    aceleracao = 3.0
-                else:                          # Direta ou padrão
-                    target_rpm = 60.0
-                    aceleracao = 8.0
+    def _run_simulator_server(self, ip, port):
+        """
+        Este método rodará isolado na simulator_thread.
+        """
+        try:
+            self.simulator_server = CompressorSimulator(host=ip, port=port)
+            self.simulator_server.start()
+            
+            # Mantém a thread viva enquanto o servidor estiver rodando
+            while getattr(self.simulator_server, 'running', False):
+                time.sleep(1.0)
                 
-                if motor_on:
-                    if self.tags['ro.encoder'] < target_rpm - aceleracao:
-                        self.tags['ro.encoder'] += aceleracao
-                    elif self.tags['ro.encoder'] > target_rpm + aceleracao:
-                        self.tags['ro.encoder'] -= aceleracao
-                    else:
-                        self.tags['ro.encoder'] = target_rpm + random.uniform(-0.5, 0.5)
-
-                    self.tags['ro.encoder'] = max(0, min(65.0, self.tags['ro.encoder']))
-                    base_power = 4000 * (self.tags['ro.encoder'] / 60.0)**2
-                    self.tags['ro.ativa_total'] = base_power + random.uniform(-100, 100)
-                    self.tags['ro.reativa_total'] = base_power * 0.4 + random.uniform(-50, 50)
-                    self.tags['ro.aparente_total'] = (self.tags['ro.ativa_total']**2 + self.tags['ro.reativa_total']**2)**0.5
-                    self.tags['ro.fp_total'] = self.tags['ro.ativa_total'] / self.tags['ro.aparente_total'] if self.tags['ro.aparente_total'] > 0 else 1
-                    self.tags['ro.torque'] = (self.tags['ro.ativa_total'] / (2 * 3.14159 * self.tags['ro.encoder'])) if self.tags['ro.encoder'] > 1 else 0
-                    self.tags['ro.temp_carc'] = min(95, self.tags['ro.temp_carc'] + 0.2 * (self.tags['ro.encoder'] / 60.0) - 0.05)
-                    self.tags['ro.corrente_media'] = (self.tags['ro.aparente_total'] / (220 * (3**0.5))) + random.uniform(-0.1, 0.1)
-                else:
-                    self.tags['ro.encoder'] = max(0, self.tags['ro.encoder'] - 4.0)
-                    for tag in ['ro.ativa_total', 'ro.reativa_total', 'ro.aparente_total', 'ro.torque']:
-                        self.tags[tag] *= 0.9
-                    self.tags['ro.corrente_media'] = random.uniform(0.0, 0.05)
-                    self.tags['ro.fp_total'] = 1.0
-                    self.tags['ro.temp_carc'] = max(25.0, self.tags['ro.temp_carc'] - 0.1)
-
-                self.tags['ro.tensao_rs'] = 220.0 + random.uniform(-2, 2)
-                self.tags['ro.tensao_st'] = 220.0 + random.uniform(-2, 2)
-                self.tags['ro.tensao_tr'] = 220.0 + random.uniform(-2, 2)
-                self.tags['ro.corrente_r'] = self.tags['ro.corrente_media'] + random.uniform(-0.05, 0.05)
-                self.tags['ro.corrente_s'] = self.tags['ro.corrente_media'] + random.uniform(-0.05, 0.05)
-                self.tags['ro.corrente_t'] = self.tags['ro.corrente_media'] + random.uniform(-0.05, 0.05)
-                self.tags['ro.corrente_n'] = random.uniform(0.0, 0.03)
-                self.tags['ro.frequencia'] = self.tags['ro.encoder']
-
-                # Lógica de pressão e vazão
-                pressure_gen = (self.tags['ro.encoder'] / 60.0) * 1.5
-                pressao_efetiva = max(0, self.tags['ro.pressao'] - 1.0)
-                flow_loss = sum(0.8 for i in range(1, 7) if self.tags.get(f'co.xv{i}', 0)) * (pressao_efetiva / 9.0)
-                self.tags['ro.pressao'] += (pressure_gen - flow_loss) * dt * 0.2
-                self.tags['ro.pressao'] = max(1.0, min(10, self.tags['ro.pressao']))
-                
-                self.tags['ro.fit03'] = (15.0 * pressao_efetiva / 9.0 + random.uniform(-0.5, 0.5)) if self.tags.get('co.xv1', 0) else 0.0
-                self.tags['ro.fit02'] = sum((12.0 * pressao_efetiva / 9.0 + random.uniform(-0.5, 0.5)) for i in range(2, 7) if self.tags.get(f'co.xv{i}', 0))
-                
-                self.app.db.log_reading(self.tags)
-            time.sleep(dt)
-
-# --- Gerenciador do Banco de Dados ---
+        except Exception as e:
+            print(f"Erro Crítico no Servidor de Simulação: {e}")
