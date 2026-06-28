@@ -2,7 +2,7 @@ import kivy
 kivy.require('2.3.0')
 
 import os
-from kivy.app import App
+from kivymd.app import MDApp
 from kivy.core.window import Window
 from kivy.uix.screenmanager import ScreenManager, FadeTransition
 
@@ -19,8 +19,9 @@ from ui.bd_screen import BDScreen
 from ui.about_screen import AboutScreen
 
 
-class CompressorApp(App):
+class CompressorApp(MDApp):
     def build(self):
+        self.theme_cls.theme_style = "Dark"
         Window.clearcolor = CORES['fundo']
         Window.size = (1600, 900)
         self.title = "COMPRESSOR INDUSTRIAL"
