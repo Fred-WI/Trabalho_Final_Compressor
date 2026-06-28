@@ -125,6 +125,8 @@ class CompressorSimulator:
     # =========================================================================
 
     def _physics_loop(self):
+        estado_motor_interno = False
+
         while self.running:
             # -----------------------------------------------------------
             # 1. LEITURA (INPUTS DO SCADA)
@@ -138,6 +140,7 @@ class CompressorSimulator:
 
             if cmd_soft == 1 or cmd_inv == 1 or cmd_dir == 1:
                 estado_motor_interno = True
+
             elif cmd_soft == 0 or cmd_inv == 0 or cmd_dir == 0:
                 if sel_driver == 1: estado_motor_interno = bool(cmd_soft)
                 elif sel_driver == 2: estado_motor_interno = bool(cmd_inv)
@@ -168,15 +171,15 @@ class CompressorSimulator:
             # -----------------------------------------------------------
             # Atualiza indicadores de painel (Diz ao SCADA o que de fato está rodando)
             self._write_tag("sys.indica_driver", sel_driver)
-            self._write_tag("sys.estado_softstarter", 1 if (motor_on and sel_driver == 1) else 0)
-            self._write_tag("sys.estado_inversor", 1 if (motor_on and sel_driver == 2) else 0)
-            self._write_tag("sys.estado_direta", 1 if (motor_on and sel_driver == 3) else 0)
+            self._write_tag("sys.estado_softstarter", 1 if (estado_motor_interno and sel_driver == 1) else 0)
+            self._write_tag("sys.estado_inversor", 1 if (estado_motor_interno and sel_driver == 2) else 0)
+            self._write_tag("sys.estado_direta", 1 if (estado_motor_interno and sel_driver == 3) else 0)
             
             # Escreve as grandezas contínuas calculadas pelos modelos físicos
             self._write_tag("co.pressao_reservatorio", self.__tank.getPressao())
             self._write_tag("co.encoder", self.__tank.motor.getRotacao())
             self._write_tag("co.torque", self.__tank.motor.getTorque())
-            self._write_tag("co.temp_carc", self.__tank.motor.getTemperature() + random.uniform(-5, 5))
+            self._write_tag("co.temp_carc", self.__tank.motor.getTemperature() + random.uniform(-1, 1))
             self._write_tag("co.corrente_media", self.__tank.motor.getCorrente())
 
             # ===========================================================
