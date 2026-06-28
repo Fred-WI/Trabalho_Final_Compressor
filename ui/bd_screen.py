@@ -1,3 +1,7 @@
+import csv
+import os
+from datetime import datetime
+
 from kivy.app import App
 from kivy.lang import Builder
 from kivy.metrics import dp
@@ -5,7 +9,8 @@ from kivy.factory import Factory
 from kivy.properties import StringProperty
 from kivymd.uix.menu import MDDropdownMenu
 from kivymd.uix.list import MDListItem, MDListItemHeadlineText
-from datetime import datetime
+
+from kivymd.uix.snackbar import MDSnackbar, MDSnackbarText
 
 Builder.load_file('ui/bd_screen.kv')
 from ui.base_screen import BaseScreen
@@ -190,4 +195,55 @@ class BDScreen(BaseScreen):
         self.content.ids.rv_dados.data = dados_formatados
 
     def exportar_csv(self):
-        print("Em breve: Exportar CSV!")
+        # 1. Pegamos os dados que já estão filtrados na RecycleView
+        dados_filtrados = self.content.ids.rv_dados.data
+        
+        if not dados_filtrados:
+            self.mostrar_mensagem("Não há dados para exportar com os filtros atuais!")
+            return
+
+        # 2. Definimos o nome do arquivo com base na tabela e na data/hora
+        tabela_atual = self.content.ids.text_table.text
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        nome_arquivo = f"relatorio_{tabela_atual}_{timestamp}.csv"
+
+        # 3. Pegamos os textos dos cabeçalhos diretamente da tela
+        cabecalhos = [
+            self.content.ids.header_1.text,
+            self.content.ids.header_2.text,
+            self.content.ids.header_3.text,
+            self.content.ids.header_4.text
+        ]
+
+        try:
+            # 4. Criamos e escrevemos no arquivo CSV
+            with open(nome_arquivo, mode='w', newline='', encoding='utf-8-sig') as f:
+                writer = csv.writer(f, delimiter=';')
+                
+                # Escreve a primeira linha (Cabeçalhos)
+                writer.writerow(cabecalhos)
+                
+                # Escreve as linhas de dados
+                for linha in dados_filtrados:
+                    writer.writerow([
+                        linha['col1'], 
+                        linha['col2'], 
+                        linha['col3'], 
+                        linha['col4']
+                    ])
+            
+            caminho_completo = os.path.abspath(nome_arquivo)
+            print(f"Exportado para: {caminho_completo}")
+            self.mostrar_mensagem(f"Exportado com sucesso: {nome_arquivo}")
+
+        except Exception as e:
+            print(f"Erro ao exportar CSV: {e}")
+            self.mostrar_mensagem("Erro ao exportar o arquivo. Verifique o terminal.")
+
+    def mostrar_mensagem(self, texto):
+        MDSnackbar(
+            MDSnackbarText(text=texto),
+            y=dp(24),
+            pos_hint={"center_x": 0.5},
+            size_hint_x=0.8,
+        ).open()
