@@ -1,3 +1,12 @@
+"""
+Módulo de Simulação de Processos e Servidor Modbus TCP.
+
+Este módulo implementa a camada de simulação física (termodinâmica, mecânica e elétrica) 
+do sistema de compressão, expondo as variáveis de estado através de um servidor 
+Modbus TCP. O projeto baseia-se em uma arquitetura de thread isolada (Daemon) para a 
+física, garantindo desacoplamento do controlador principal.
+"""
+
 import threading
 import time
 from pyModbusTCP.server import ModbusServer
@@ -6,12 +15,34 @@ from pyModbusTCP.server import ModbusServer
 from controllers.simulador.Tanque import Tanque
 from controllers.config_load import load_tags
 
+# TODO: Mover a importação do módulo padrão 'random' para o topo do arquivo, respeitando as diretrizes de organização da PEP 8.
 import random
 
 class CompressorSimulator:
+    """
+    Orquestrador da simulação física e comunicação Modbus (Server).
+
+    Gerencia o ciclo de vida do servidor TCP, a alocação de memória (DataBank) baseada 
+    nos metadados das tags e a execução contínua do modelo matemático em uma thread 
+    separada, simulando o comportamento determinístico e estocástico de um compressor real.
+    """
+    
+    # TODO: Extrair a constante de tempo '__tick' para um arquivo de configuração externo a fim de evitar acoplamento rígido na classe e facilitar testes unitários.
     __tick = 0.1
 
     def __init__(self, host='127.0.0.1', port=502):
+        """
+        Inicializa as estruturas de dados, os modelos físicos e o servidor TCP.
+
+        Args:
+            host (str, opcional): Endereço IP para vinculação do socket (bind). Padrão é '127.0.0.1'.
+            port (int, opcional): Porta de escuta do servidor Modbus. Padrão é 502.
+
+        Pré-condições:
+            Os módulos de modelo físico ('Tanque') e carregador de tags devem estar acessíveis.
+        Pós-condições:
+            Instância do servidor Modbus criada, memória alocada e sistema pronto para iniciar a thread.
+        """
         # Inicializa a termodinâmica do reservatório (ele já cria o Motor internamente)
         self.__tank = Tanque(self.__tick)
         
@@ -26,7 +57,16 @@ class CompressorSimulator:
         self._initialize_databank()
 
     def _initialize_databank(self):
-        """Aloca a memória inicial do servidor baseado no JSON."""
+        """
+        Aloca a memória inicial do servidor Modbus baseada no dicionário de metadados.
+
+        Itera sobre as configurações carregadas do JSON para preencher os Holding Registers
+        com zeros, alocando 2 registradores para variáveis de ponto flutuante (FP) e 1 
+        registrador para os demais tipos de dados.
+
+        Complexity:
+            Tempo: O(N) | Espaço: O(N), onde N é o número de tags no dicionário.
+        """
         for info in self.tags_addrs.values():
             addr = info["address"]
             if info["type"] == "FP":
@@ -36,7 +76,16 @@ class CompressorSimulator:
         print(f"Memória do CLP simulado inicializada com {len(self.tags_addrs)} tags.")
 
     def _set_float(self, address, value):
-        """Grava um Float32 (em 2 registradores) no DataBank."""
+        """
+        Serializa um Float32 (IEEE 754) para gravação em dois registradores de 16 bits.
+
+        Args:
+            address (int): Endereço base do registrador Modbus.
+            value (float): Valor numérico a ser serializado.
+
+        Complexity:
+            Tempo: O(1) | Espaço: O(1).
+        """
         import struct
         raw_bytes = struct.pack('>f', float(value))
         high_word = int.from_bytes(raw_bytes[0:2], byteorder='big')
@@ -44,7 +93,18 @@ class CompressorSimulator:
         self.server.data_bank.set_holding_registers(address, [low_word, high_word])
 
     def _get_float(self, address):
-        """Lê um Float32 (de 2 registradores) do DataBank."""
+        """
+        Desserializa dois registradores de 16 bits (Big-Endian) em um Float32 (IEEE 754).
+
+        Args:
+            address (int): Endereço base do registrador Modbus.
+
+        Returns:
+            float: O valor reconstituído, ou 0.0 caso ocorra falha na leitura.
+
+        Complexity:
+            Tempo: O(1) | Espaço: O(1).
+        """
         import struct
         words = self.server.data_bank.get_holding_registers(address, 2)
         if not words or len(words) < 2: 
@@ -53,6 +113,14 @@ class CompressorSimulator:
         return struct.unpack('>f', raw)[0]
 
     def start(self):
+        """
+        Inicia a escuta do servidor na interface de rede e dispara a thread de simulação física.
+
+        Pré-condições:
+            Servidor Modbus inicializado e instanciado.
+        Pós-condições:
+            Porta TCP em estado LISTENING. Laço de simulação em execução assíncrona.
+        """
         self.server.start()
         self.running = True
         self.sim_thread = threading.Thread(target=self._physics_loop, daemon=True)
@@ -60,10 +128,16 @@ class CompressorSimulator:
         print(f"Servidor CLP Simulado rodando em {self.server.host}:{self.server.port}")
         
     def stop(self):
+        """
+        Sinaliza a parada do laço de simulação e encerra o socket do servidor Modbus TCP.
+
+        Garante a liberação da porta de rede no sistema operacional.
+        """
         self.running = False
         if hasattr(self, 'server') and self.server:
             self.server.stop()
 
+        # TODO: Adicionar um argumento de timeout (ex: join(timeout=1.0)) para evitar um bloqueio permanente (deadlock) da thread principal caso o laço físico trave.
         if self.sim_thread and self.sim_thread.is_alive():
             self.sim_thread.join()
         print("Servidor CLP Simulado encerrado.")
@@ -73,7 +147,15 @@ class CompressorSimulator:
     # =========================================================================
     
     def _read_tag(self, tag_name):
-        """Lê um valor do DataBank usando as configurações do JSON."""
+        """
+        Abstrai a leitura da memória do Modbus, resolvendo tipo de dado e escala (div).
+
+        Args:
+            tag_name (str): Identificador da variável a ser lida.
+
+        Returns:
+            float/int: Valor numérico decodificado e desmascarado, pronto para uso matemático.
+        """
         info = self.tags_addrs.get(tag_name)
         if not info: return 0.0
         
@@ -96,7 +178,13 @@ class CompressorSimulator:
             return val / div if div != 0 else val
 
     def _write_tag(self, tag_name, value):
-        """Escreve um valor no DataBank usando as configurações do JSON."""
+        """
+        Abstrai a escrita na memória Modbus aplicando divisores matemáticos e máscaras de bits.
+
+        Args:
+            tag_name (str): Identificador da variável destino.
+            value (float/int): Valor de engenharia a ser salvo na memória do CLP.
+        """
         info = self.tags_addrs.get(tag_name)
         if not info: return
         
@@ -125,6 +213,23 @@ class CompressorSimulator:
     # =========================================================================
 
     def _physics_loop(self):
+        """
+        Laço principal de simulação temporal (Solver de Estado Discreto).
+
+        O método opera em três fases sequenciais:
+        1. Leitura: Coleta de comandos de acionamento e setpoints gravados pelo cliente SCADA.
+        2. Física: Processamento de equações termodinâmicas e mecânicas da malha.
+        3. Escrita: Devolução dos resultados de engenharia (com ruído estocástico inserido) para a memória do servidor Modbus.
+
+        Complexity:
+            Tempo: O(K) | Espaço: O(1) por ciclo, onde K é a constante de processamento das equações físicas.
+        
+        Pré-condições:
+            Servidor rodando e estruturas físicas instanciadas.
+        Pós-condições:
+            A cada incremento temporal (`__tick`), as grandezas na memória Modbus refletem
+            o avanço do estado do sistema.
+        """
         estado_motor_interno = False
 
         while self.running:
@@ -216,6 +321,7 @@ class CompressorSimulator:
             self._write_tag("co.corrente_media", corrente_media_com_ruido)
 
             valvulas_abertas = sum(xv_states[1:6])
+            # TODO: Eliminar a redundância de chamadas a 'getPressao()' e 'getRotacao()', consolidando com as variáveis 'pressao_atual' e 'rpm_atual' já obtidas no escopo superior para otimizar processamento e consistência dos dados do ciclo.
             pressao_atual = self.__tank.getPressao()
             rpm_atual = self.__tank.motor.getRotacao()
 
@@ -244,6 +350,7 @@ class CompressorSimulator:
             self._write_tag("co.reativa_total", pot_reativa)
             self._write_tag("co.fp_total", fp_total)
             
+            # TODO: Remover blocos de código comentado para manter a base de código limpa e reduzir a dívida técnica de manutenção.
             # try:
             #     pressao_sim = self.__tank.getPressao()
             #     rpm_sim = self.__tank.motor.getRotacao()
@@ -255,4 +362,6 @@ class CompressorSimulator:
                 # print(f"[SIMULADOR] Memória Modbus -> Endereço {addr_tensao} contém: {words_tensao}")
             # except Exception as debug_e:
             #     print(f"Erro no debug do simulador: {debug_e}")
+            
+            # TODO: Compensar o tempo de execução do laço ('elapsed_time') no 'time.sleep' para evitar deriva temporal (drift) na simulação física ao longo do tempo.
             time.sleep(self.__tick)
