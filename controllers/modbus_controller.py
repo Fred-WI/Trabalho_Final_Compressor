@@ -338,7 +338,7 @@ class ModbusController:
                 # print(f"[KIVY SCADA] Lendo -> Habilita: {habilita_kivy} | Tensão RS: {tensao_kivy:.1f} | Pressão: {pressao_kivy:.2f}")
                 
                 
-                self.app.db.log_reading(self.tags)
+                self.app.db.log_reading(self.tags, self.tags_addrs)
                 elapsed = time.time() - start_time
                 if elapsed < tickrate: time.sleep(tickrate - elapsed)
             except (ConnectionException, AttributeError) as e: 
