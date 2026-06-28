@@ -37,7 +37,7 @@ class ValvulasScreen(BaseScreen):
     def __init__(self, **kwargs):
         super().__init__(**kwargs); self.name = 'valvulas'; self.add_header("Controle de Válvulas Solenoides")
         grid = GridLayout(cols=3, spacing=20, padding=20); self.valves = {}
-        for i in range(1, 7):
+        for i in range(2, 7):
             valve_box = BoxLayout(orientation='vertical', spacing=10, padding=10)
             with valve_box.canvas.before: Color(*CORES['fundo_claro']); valve_box.bg = RoundedRectangle(pos=valve_box.pos, size=valve_box.size, radius=[8])
             valve_box.bind(pos=lambda i,v: setattr(i.bg, 'pos', v), size=lambda i,v: setattr(i.bg, 'size', v))
@@ -54,7 +54,7 @@ class ValvulasScreen(BaseScreen):
     def update_ui(self, dt):
         app = App.get_running_app()
         if app.modbus and app.modbus.is_connected:
-            for i in range(1, 7):
+            for i in range(2, 7):
                 state = app.modbus.read_tag(f'co.xv{i}') == 1
                 if self.valves[i]['switch'].active != state: self.valves[i]['switch'].active = state
                 self.update_valve_status(i, state)

@@ -168,8 +168,8 @@ class DashboardScreen(Screen):
                 bold=True,
                 color=(0, 0, 0, 1),
                 size_hint=(0.12,0.08),
-                pos_hint={"x":0.065,"y":0.655}
-                #pos_hint={"x":0.063,"y":0.67}
+                #pos_hint={"x":0.065,"y":0.655}
+                pos_hint={"x":0.063,"y":0.67}
             )
 
             # ------------------------
@@ -184,8 +184,8 @@ class DashboardScreen(Screen):
                 bold=True,
                 color=(0, 0, 0, 1),
                 size_hint=(0.15,0.08),
-                pos_hint={"x":0.385,"y":0.71}
-                #pos_hint={"x":0.384,"y":0.73}
+                #pos_hint={"x":0.385,"y":0.71}
+                pos_hint={"x":0.384,"y":0.73}
             )
 
             self.diagram_layer.add_widget(self.pressao_label)
@@ -197,11 +197,11 @@ class DashboardScreen(Screen):
             self.valve_buttons = {}
 
             valve_positions = {
-                2: {'x': 0.85, 'y': 0.677},
-                3: {'x': 0.85, 'y': 0.564},
-                4: {'x': 0.85, 'y': 0.451},
-                5: {'x': 0.85, 'y': 0.337},
-                6: {'x': 0.85, 'y': 0.225},
+                2: {'x': 0.8475, 'y': 0.689},
+                3: {'x': 0.8475, 'y': 0.568},
+                4: {'x': 0.8475, 'y': 0.447},
+                5: {'x': 0.8475, 'y': 0.326},
+                6: {'x': 0.8475, 'y': 0.205},
             }
 
             for valve_id, pos in valve_positions.items():
@@ -213,7 +213,7 @@ class DashboardScreen(Screen):
                     background_normal='',
                     background_down='',
                     background_color=(0.35, 0.35, 0.35, 1),
-                    size_hint=(0.055, 0.035),
+                    size_hint=(0.055, 0.04),
                     pos_hint=pos
                 )
                 btn.valve_id = valve_id
