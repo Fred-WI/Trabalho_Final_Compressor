@@ -6,6 +6,8 @@ from pyModbusTCP.server import ModbusServer
 from controllers.simulador.Tanque import Tanque
 from controllers.config_load import load_tags
 
+import random
+
 class CompressorSimulator:
     __tick = 0.1
 
@@ -28,10 +30,27 @@ class CompressorSimulator:
         for info in self.tags_addrs.values():
             addr = info["address"]
             if info["type"] == "FP":
-                self.server.data_bank.set_words(addr, [0, 0])
+                self.server.data_bank.set_holding_registers(addr, [0, 0])
             else:
-                self.server.data_bank.set_words(addr, [0])
+                self.server.data_bank.set_holding_registers(addr, [0])
         print(f"Memória do CLP simulado inicializada com {len(self.tags_addrs)} tags.")
+
+    def _set_float(self, address, value):
+        """Grava um Float32 (em 2 registradores) no DataBank."""
+        import struct
+        raw_bytes = struct.pack('>f', float(value))
+        high_word = int.from_bytes(raw_bytes[0:2], byteorder='big')
+        low_word = int.from_bytes(raw_bytes[2:4], byteorder='big')
+        self.server.data_bank.set_holding_registers(address, [low_word, high_word])
+
+    def _get_float(self, address):
+        """Lê um Float32 (de 2 registradores) do DataBank."""
+        import struct
+        words = self.server.data_bank.get_holding_registers(address, 2)
+        if not words or len(words) < 2: 
+            return 0.0
+        raw = int(words[1]).to_bytes(2, byteorder='big') + int(words[0]).to_bytes(2, byteorder='big')
+        return struct.unpack('>f', raw)[0]
 
     def start(self):
         self.server.start()
@@ -62,14 +81,14 @@ class CompressorSimulator:
         div = info.get("div", 1)
         
         if info["type"] == "FP":
-            words = self.server.data_bank.get_words(addr, 2)
+            words = self.server.data_bank.get_holding_registers(addr, 2)
             if not words or len(words) < 2: return 0.0
             import struct
             raw = int(words[1]).to_bytes(2, 'big') + int(words[0]).to_bytes(2, 'big')
             val = struct.unpack('>f', raw)[0]
             return val / div if div != 0 else val
         else:
-            words = self.server.data_bank.get_words(addr, 1)
+            words = self.server.data_bank.get_holding_registers(addr, 1)
             val = words[0] if words else 0
             bit = info.get("bit")
             if bit != "" and bit is not None:
@@ -90,16 +109,16 @@ class CompressorSimulator:
             raw_bytes = struct.pack('>f', val_to_write)
             high_word = int.from_bytes(raw_bytes[0:2], 'big')
             low_word = int.from_bytes(raw_bytes[2:4], 'big')
-            self.server.data_bank.set_words(addr, [low_word, high_word])
+            self.server.data_bank.set_holding_registers(addr, [low_word, high_word])
         else:
             bit = info.get("bit")
             if bit != "" and bit is not None:
-                words = self.server.data_bank.get_words(addr, 1)
+                words = self.server.data_bank.get_holding_registers(addr, 1)
                 reg_val = words[0] if words else 0
                 new_val = reg_val | (1 << int(bit)) if int(value) == 1 else reg_val & ~(1 << int(bit))
-                self.server.data_bank.set_words(addr, [new_val])
+                self.server.data_bank.set_holding_registers(addr, [new_val])
             else:
-                self.server.data_bank.set_words(addr, [int(val_to_write)])
+                self.server.data_bank.set_holding_registers(addr, [int(val_to_write)])
 
     # =========================================================================
     # LOOP DA FÍSICA DO SISTEMA
@@ -113,16 +132,21 @@ class CompressorSimulator:
             # Lê qual partida está selecionada (1: Soft, 2: Inversor, 3: Direta)
             sel_driver = int(self._read_tag("co.sel_driver") or 3)
             
+            cmd_soft = int(self._read_tag("sys.cmd_softstarter"))
+            cmd_inv  = int(self._read_tag("sys.cmd_inversor"))
+            cmd_dir  = int(self._read_tag("sys.cmd_direta"))
+
+            if cmd_soft == 1 or cmd_inv == 1 or cmd_dir == 1:
+                estado_motor_interno = True
+            elif cmd_soft == 0 or cmd_inv == 0 or cmd_dir == 0:
+                if sel_driver == 1: estado_motor_interno = bool(cmd_soft)
+                elif sel_driver == 2: estado_motor_interno = bool(cmd_inv)
+                else: estado_motor_interno = bool(cmd_dir)
+
             # Busca o comando de ligar (motorState) e define o tempo de aceleração
-            if sel_driver == 1:
-                motor_on = bool(self._read_tag("sys.cmd_softstarter"))
-                t_partida = 10.0 # Rampa suave do Soft-Starter
-            elif sel_driver == 2:
-                motor_on = bool(self._read_tag("sys.cmd_inversor"))
-                t_partida = 5.0 # Rampa média do Inversor
-            else:
-                motor_on = bool(self._read_tag("sys.cmd_direta"))
-                t_partida = 0.2 # Rampa violenta da Partida Direta
+            if sel_driver == 1: t_partida = 10.0
+            elif sel_driver == 2: t_partida = 5.0
+            else: t_partida = 0.2
                 
             freq_ref = self._read_tag("co.freq_ref")
             if freq_ref <= 0: freq_ref = 60.0
@@ -137,7 +161,7 @@ class CompressorSimulator:
             # -----------------------------------------------------------
             # 2. FÍSICA (EXECUTA 1 PASSO DA MATEMÁTICA)
             # -----------------------------------------------------------
-            self.__tank.TankSimulation(freq_ref, t_partida, motor_on, xv_states)
+            self.__tank.TankSimulation(freq_ref, t_partida, estado_motor_interno, xv_states)
 
             # -----------------------------------------------------------
             # 3. ESCRITA (FEEDBACK PARA O SCADA LER)
@@ -152,7 +176,38 @@ class CompressorSimulator:
             self._write_tag("co.pressao_reservatorio", self.__tank.getPressao())
             self._write_tag("co.encoder", self.__tank.motor.getRotacao())
             self._write_tag("co.torque", self.__tank.motor.getTorque())
-            self._write_tag("co.temp_carc", self.__tank.motor.getTemperature())
+            self._write_tag("co.temp_carc", self.__tank.motor.getTemperature() + random.uniform(-5, 5))
             self._write_tag("co.corrente_media", self.__tank.motor.getCorrente())
+
+            # ===========================================================
+            # MULTIMEDIDOR VIRTUAL (Flutuação contínua independente do motor)
+            # ===========================================================
             
+            # A rede elétrica oscila em torno de 220V
+            ruido_tensao = lambda: 220.0 + random.uniform(-1.5, 1.5)
+            self._write_tag("co.tensao_rs", ruido_tensao())
+            self._write_tag("co.tensao_st", ruido_tensao())
+            self._write_tag("co.tensao_tr", ruido_tensao())
+            
+            # Frequência da rede elétrica oscila levemente em torno de 60Hz
+            self._write_tag("co.frequencia", 60.0 + random.uniform(-0.1, 0.1))
+
+            # Corrente real do motor somada ao ruído dos sensores (Transformadores de Corrente - TCs)
+            corrente_real = self.__tank.motor.getCorrente()
+            self._write_tag("co.corrente_r", corrente_real + random.uniform(-0.05, 0.05))
+            self._write_tag("co.corrente_s", corrente_real + random.uniform(-0.05, 0.05))
+            self._write_tag("co.corrente_t", corrente_real + random.uniform(-0.05, 0.05))
+            self._write_tag("co.corrente_media", corrente_real + random.uniform(-0.02, 0.02))
+            
+            # try:
+            #     pressao_sim = self.__tank.getPressao()
+            #     rpm_sim = self.__tank.motor.getRotacao()
+            #     # Lê direto do DataBank para ver se gravou mesmo (ex: Tensão R-S no endereço 732, verifique o seu endereço no JSON)
+            #     addr_tensao = self.tags_addrs.get("co.tensao_rs", {}).get("address", 0)
+            #     words_tensao = self.server.data_bank.get_holding_registers(addr_tensao, 2)
+                
+                # print(f"[SIMULADOR] Física -> RPM: {rpm_sim:.1f} | Pressão: {pressao_sim:.2f}")
+                # print(f"[SIMULADOR] Memória Modbus -> Endereço {addr_tensao} contém: {words_tensao}")
+            # except Exception as debug_e:
+            #     print(f"Erro no debug do simulador: {debug_e}")
             time.sleep(self.__tick)

@@ -1,6 +1,9 @@
 import logging
 logger = logging.getLogger("SCADA_ModbusController")
 
+logging.getLogger("pyModbusTCP.client").setLevel(logging.WARNING)
+logging.getLogger("pyModbusTCP.server").setLevel(logging.WARNING)
+
 import os
 import platform
 import random
@@ -327,6 +330,14 @@ class ModbusController:
                         except Exception as e:
                             pass
 
+                # # --- ADICIONE ESTE PRINT PARA DEBUG ---
+                # pressao_kivy = self.tags.get('co.pressao_reservatorio', 0.0)
+                # tensao_kivy = self.tags.get('co.tensao_rs', 0.0)
+                # habilita_kivy = self.tags.get('co.habilita', 0.0)
+                
+                # print(f"[KIVY SCADA] Lendo -> Habilita: {habilita_kivy} | Tensão RS: {tensao_kivy:.1f} | Pressão: {pressao_kivy:.2f}")
+                
+                
                 self.app.db.log_reading(self.tags)
                 elapsed = time.time() - start_time
                 if elapsed < tickrate: time.sleep(tickrate - elapsed)
