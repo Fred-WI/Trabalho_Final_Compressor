@@ -174,11 +174,23 @@ class CompressorSimulator:
             self._write_tag("sys.estado_softstarter", 1 if (estado_motor_interno and sel_driver == 1) else 0)
             self._write_tag("sys.estado_inversor", 1 if (estado_motor_interno and sel_driver == 2) else 0)
             self._write_tag("sys.estado_direta", 1 if (estado_motor_interno and sel_driver == 3) else 0)
+
+            pressao_atual = self.__tank.getPressao()
+            rpm_atual = self.__tank.motor.getRotacao()
             
             # Escreve as grandezas contínuas calculadas pelos modelos físicos
-            self._write_tag("co.pressao", self.__tank.getPressao())
-            self._write_tag("co.encoder", self.__tank.motor.getRotacao())
-            self._write_tag("co.torque", self.__tank.motor.getTorque())
+            self._write_tag("co.pressao", pressao_atual)
+            self._write_tag("co.encoder", rpm_atual)
+
+            if rpm_atual < 1.0:
+                torque_realista = 0
+            else:
+                torque_base = self.__tank.motor.getTorque()
+                esforco_compressor = pressao_atual * 0.45
+                torque_realista = torque_base + esforco_compressor + random.uniform(-0.02, 0.02)
+
+
+            self._write_tag("co.torque", torque_realista)
             self._write_tag("co.temp_carc", self.__tank.motor.getTemperature() + random.uniform(-1, 1))
             self._write_tag("co.corrente_media", self.__tank.motor.getCorrente())
 
@@ -197,10 +209,40 @@ class CompressorSimulator:
 
             # Corrente real do motor somada ao ruído dos sensores (Transformadores de Corrente - TCs)
             corrente_real = self.__tank.motor.getCorrente()
+            corrente_media_com_ruido = corrente_real + random.uniform(-0.02, 0.02)
             self._write_tag("co.corrente_r", corrente_real + random.uniform(-0.05, 0.05))
             self._write_tag("co.corrente_s", corrente_real + random.uniform(-0.05, 0.05))
             self._write_tag("co.corrente_t", corrente_real + random.uniform(-0.05, 0.05))
-            self._write_tag("co.corrente_media", corrente_real + random.uniform(-0.02, 0.02))
+            self._write_tag("co.corrente_media", corrente_media_com_ruido)
+
+            valvulas_abertas = sum(xv_states[1:6])
+            pressao_atual = self.__tank.getPressao()
+            rpm_atual = self.__tank.motor.getRotacao()
+
+            vazao_calculada = pressao_atual * valvulas_abertas * 2.5
+
+            vazao_fit02 = vazao_calculada + random.uniform(-0.2, 0.2) if valvulas_abertas > 0 else 0.0
+
+            self._write_tag("co.fit02", max(0.0, vazao_fit02))
+
+            pot_aparente = (1.732 * 220.0 * corrente_real) / 1000.0
+
+            if estado_motor_interno:
+                fp_total = 0.85 + random.uniform(-0.02, 0.02)
+            else:
+                fp_total = 0.0
+
+            pot_ativa = pot_aparente * fp_total
+
+            if pot_aparente > pot_ativa:
+                pot_reativa = (pot_aparente**2-pot_ativa**2)**0.5
+            else:
+                pot_reativa = 0.0
+
+            self._write_tag("co.aparente_total", pot_aparente)
+            self._write_tag("co.ativa_total", pot_ativa)
+            self._write_tag("co.reativa_total", pot_reativa)
+            self._write_tag("co.fp_total", fp_total)
             
             # try:
             #     pressao_sim = self.__tank.getPressao()

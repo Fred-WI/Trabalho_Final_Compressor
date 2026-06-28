@@ -61,18 +61,16 @@ class DatabaseManager:
 
     def log_reading(self, tags_values, tags_definitions):
         """
-        tags_values: o dicionário com os valores atuais (ex: {'co.pressao': 5.2, ...})
-        tags_definitions: o dicionário que carregamos do tags_compressor.json
+        tags_values: o dicionário com os valores atuais
+        tags_definitions: o dicionário carregado do JSON
         """
         try:
             current_time = datetime.now()
             readings_to_add = []
 
             for tag_name, value in tags_values.items():
-                # Busca a definição desta tag no JSON
                 tag_def = tags_definitions.get(tag_name)
                 
-                # SÓ SALVA se a tag existir E o save_history for True
                 if tag_def and tag_def.get("save_history") is True:
                     readings_to_add.append(TagReading(
                         timestamp=current_time,
@@ -80,10 +78,17 @@ class DatabaseManager:
                         value=float(value)
                     ))
 
+            needs_flush = False  # Flag de controle
+            
+            # TRANCAMOS A PORTA APENAS PARA GUARDAR NA MEMÓRIA
             with self._buffer_lock:
                 self._readings_buffer.extend(readings_to_add)
                 if len(self._readings_buffer) >= self._buffer_limit:
-                    self.flush_readings()
+                    needs_flush = True
+            
+            # GRAVAMOS NO DISCO COM A PORTA DESTRAVADA! Fim do Deadlock.
+            if needs_flush:
+                self.flush_readings()
                     
         except Exception as e:
             print(f"Erro ao filtrar e gravar leituras: {e}")
@@ -110,7 +115,7 @@ class DatabaseManager:
     # ==========================================
 
     def query_readings(self, variable, start_date=None, end_date=None):
-        self.flush_readings()
+        # self.flush_readings()
         
         session = self.SessionLocal()
         try:
@@ -126,9 +131,15 @@ class DatabaseManager:
                     TagReading.timestamp <= end_date
                 )
 
-            readings = query.order_by(TagReading.timestamp.asc()).all()
+                readings = query.order_by(TagReading.timestamp.asc()).all()
 
-            return [(ts.strftime("%Y-%m-%d %H:%M:%S"), val) for ts, val in readings]
+                return [(ts.strftime("%Y-%m-%d %H:%M:%S"), val) for ts, val in readings]
+            
+            else:
+                query = query.order_by(TagReading.timestamp.desc()).limit(600)
+                readings = query.all()
+                readings.reverse()
+                return [(ts.strftime("%Y-%m-%d %H:%M:%S"), val) for ts, val in readings]
         finally:
             session.close()
 
