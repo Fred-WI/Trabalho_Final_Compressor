@@ -1,0 +1,321 @@
+#:kivy 2.0.0
+
+# ==============================================================================
+# Módulo: Visualizador de Banco de Dados (Interface Gráfica)
+# Descrição: Declaração declarativa da árvore de widgets para a tela de banco 
+# de dados. Orquestra a disposição visual dos filtros temporais, seletores de 
+# contexto e a renderização virtualizada dos registros (RecycleView).
+# ==============================================================================
+
+# Descrição: Widget de entrada de texto estendido para restrição numérica.
+# Atua como componente base para a inserção segmentada de campos de data e hora.
+# Args:
+#   N/A (Propriedades gerenciadas via atributos Kivy).
+# Returns: N/A.
+# Pre-condições: N/A.
+# Pós-condições: O componente aceita e exibe exclusivamente caracteres numéricos.
+<NumberInput@TextInput>:
+    input_filter: 'int'
+    multiline: False
+    halign: 'center'
+    size_hint_x: None
+    width: dp(55)
+    font_size: sp(14)
+    # TODO: O uso de cores fixas anula a dinamicidade do KivyMD. Em alternâncias de tema (Light/Dark), este componente permanecerá estático, podendo gerar conflitos de contraste.
+    background_color: 0.9, 0.9, 0.9, 1
+    foreground_color: 0.1, 0.1, 0.1, 1
+
+
+# Descrição: Estrutura de layout de linha para exibição de dados tabulares.
+# Utilizado como viewclass iterativa pelo RecycleView para apresentar instâncias de dados.
+# Args:
+#   col1 (str): Representação textual do ID do registro.
+#   col2 (str): Representação textual do Timestamp (Data e Hora).
+#   col3 (str): Representação textual da Tag ou Tipo de Evento.
+#   col4 (str): Representação textual do Valor Salvo ou Descrição.
+# Returns: N/A.
+<DataRow@MDBoxLayout>:
+    orientation: 'horizontal'
+    size_hint_y: None
+    height: dp(40)
+    padding: [10, 0, 10, 0]
+    
+    col1: ''
+    col2: ''
+    col3: ''
+    col4: ''
+    
+    MDLabel:
+        text: root.col1
+        theme_text_color: "Custom"
+        # TODO: A hardcode de cor textual (1, 1, 1, 1) força a cor branca. Caso o container assuma tema claro, o texto ficará invisível.
+        text_color: 1, 1, 1, 1  
+        size_hint_x: 0.15
+    MDLabel:
+        text: root.col2
+        theme_text_color: "Custom"
+        text_color: 1, 1, 1, 1
+        size_hint_x: 0.35
+    MDLabel:
+        text: root.col3
+        theme_text_color: "Custom"
+        text_color: 1, 1, 1, 1
+        size_hint_x: 0.3
+    MDLabel:
+        text: root.col4
+        theme_text_color: "Custom"
+        text_color: 1, 1, 1, 1
+        size_hint_x: 0.2
+
+
+# Descrição: Contêiner principal da interface gráfica de consulta ao banco de dados.
+# Agrega e posiciona os controles de filtragem, cabeçalhos tabulares e a lista de dados.
+# Pre-condições: O contexto Python pai (BDScreen) deve possuir os métodos de controle de menu e exportação ('parent_screen.menu_tabelas', 'parent_screen.exportar_csv', etc).
+# Complexity: 
+#   Tempo: O(V) para renderização inicial.
+#   Espaço: O(V) - Onde V é a quantidade de instâncias DataRow visíveis no viewport do RecycleView.
+<BDContent@MDBoxLayout>:
+    orientation: 'vertical'
+    spacing: dp(15)
+    padding: dp(10)
+
+    # ===================================================
+    # LINHA 1: Seleção de Tabela, Tag e Exportar
+    # ===================================================
+    MDBoxLayout:
+        size_hint_y: None
+        height: dp(40)
+        spacing: dp(15)
+
+        MDLabel:
+            text: "Tabela:"
+            size_hint_x: None
+            width: dp(55)
+            bold: True
+            theme_text_color: "Custom"
+            text_color: 1, 1, 1, 1
+
+        # --- BOTÃO DA TABELA ---
+        MDButton:
+            id: drop_table
+            style: "tonal"
+            pos_hint: {'center_y': 0.5}
+            on_release: root.parent_screen.menu_tabelas.open()
+            
+            MDButtonText:
+                id: text_table  
+                text: 'readings'
+                theme_text_color: "Custom"
+                text_color: 0, 0, 0, 1  
+
+        # --- BOTÃO DA TAG/EVENTO ---
+        MDButton:
+            id: drop_tag
+            style: "tonal"
+            pos_hint: {'center_y': 0.5}
+            on_release: root.parent_screen.menu_tags.open()
+            
+            MDButtonText:
+                id: text_tag  
+                text: 'Todas as Tags'
+                theme_text_color: "Custom"
+                text_color: 0, 0, 0, 1  
+
+        Widget: # Empurra o botão de exportar para o final
+
+        MDButton:
+            style: "filled"
+            md_bg_color: 0, 0.5, 0.2, 1  
+            pos_hint: {'center_y': 0.5}
+            on_release: root.parent_screen.exportar_csv()
+            MDButtonIcon:
+                icon: "file-excel"
+                theme_icon_color: "Custom"
+                icon_color: 1, 1, 1, 1
+            MDButtonText:
+                text: "Exportar CSV"
+                theme_text_color: "Custom"
+                text_color: 1, 1, 1, 1
+
+    # ===================================================
+    # LINHA 2: Data de Início
+    # ===================================================
+    MDBoxLayout:
+        size_hint_y: None
+        height: dp(35)
+        spacing: dp(5)
+
+        MDLabel:
+            text: "Início:"
+            size_hint_x: None
+            width: dp(55)
+            bold: True
+            theme_text_color: "Custom"
+            text_color: 1, 1, 1, 1
+            
+        # TODO: Ausência de propriedades nativas de limitação (ex: max_text_length) nos componentes NumberInput permite que o usuário insira inteiros além do formato esperado (YYYY/MM/DD), transferindo a responsabilidade total de tratamento para o backend Python.
+        NumberInput:
+            id: start_y
+            hint_text: "Ano"
+            width: dp(65)
+        MDLabel:
+            text: "/"
+            size_hint_x: None
+            width: dp(10)
+            halign: "center"
+        NumberInput:
+            id: start_m
+            hint_text: "Mês"
+        MDLabel:
+            text: "/"
+            size_hint_x: None
+            width: dp(10)
+            halign: "center"
+        NumberInput:
+            id: start_d
+            hint_text: "Dia"
+            
+        MDLabel:
+            text: "-"
+            size_hint_x: None
+            width: dp(15)
+            halign: "center"
+            
+        NumberInput:
+            id: start_h
+            hint_text: "Hora"
+        MDLabel:
+            text: ":"
+            size_hint_x: None
+            width: dp(10)
+            halign: "center"
+        NumberInput:
+            id: start_min
+            hint_text: "Min"
+
+        Widget: # Espaçador
+
+        MDButton:
+            style: "text"
+            pos_hint: {'center_y': 0.5}
+            on_release: root.parent_screen.limpar_filtros()
+            MDButtonText:
+                text: "Limpar Filtros"
+                theme_text_color: "Custom"
+                text_color: app.theme_cls.errorColor
+
+    # ===================================================
+    # LINHA 3: Data de Fim
+    # ===================================================
+    MDBoxLayout:
+        size_hint_y: None
+        height: dp(35)
+        spacing: dp(5)
+
+        MDLabel:
+            text: "Fim:"
+            size_hint_x: None
+            width: dp(55)
+            bold: True
+            theme_text_color: "Custom"
+            text_color: 1, 1, 1, 1
+            
+        NumberInput:
+            id: end_y
+            hint_text: "Ano"
+            width: dp(65)
+        MDLabel:
+            text: "/"
+            size_hint_x: None
+            width: dp(10)
+            halign: "center"
+        NumberInput:
+            id: end_m
+            hint_text: "Mês"
+        MDLabel:
+            text: "/"
+            size_hint_x: None
+            width: dp(10)
+            halign: "center"
+        NumberInput:
+            id: end_d
+            hint_text: "Dia"
+            
+        MDLabel:
+            text: "-"
+            size_hint_x: None
+            width: dp(15)
+            halign: "center"
+            
+        NumberInput:
+            id: end_h
+            hint_text: "Hora"
+        MDLabel:
+            text: ":"
+            size_hint_x: None
+            width: dp(10)
+            halign: "center"
+        NumberInput:
+            id: end_min
+            hint_text: "Min"
+
+        Widget: # Espaçador
+
+        MDButton:
+            style: "filled"
+            pos_hint: {'center_y': 0.5}
+            on_release: root.parent_screen.aplicar_filtros()
+            MDButtonText:
+                text: "Aplicar Filtros"
+
+    # ===================================================
+    # CABEÇALHO DA TABELA
+    # ===================================================
+    MDBoxLayout:
+        orientation: 'horizontal'
+        size_hint_y: None
+        height: dp(40)
+        padding: [10, 0, 10, 0]
+        md_bg_color: app.theme_cls.primaryContainerColor 
+
+        MDLabel:
+            id: header_1
+            text: "ID"
+            bold: True
+            size_hint_x: 0.15
+            theme_text_color: "Custom"
+            text_color: app.theme_cls.onPrimaryContainerColor  
+        MDLabel:
+            id: header_2
+            text: "Data e Hora"
+            bold: True
+            size_hint_x: 0.35
+            theme_text_color: "Custom"
+            text_color:app.theme_cls.onPrimaryContainerColor  
+        MDLabel:
+            id: header_3
+            text: "Variável (Tag)"
+            bold: True
+            size_hint_x: 0.3
+            theme_text_color: "Custom"
+            text_color:app.theme_cls.onPrimaryContainerColor  
+        MDLabel:
+            id: header_4
+            text: "Valor Salvo"
+            bold: True
+            size_hint_x: 0.2
+            theme_text_color: "Custom"
+            text_color:app.theme_cls.onPrimaryContainerColor  
+
+    # ===================================================
+    # DADOS DA TABELA
+    # ===================================================
+    RecycleView:
+        id: rv_dados
+        viewclass: 'DataRow'
+        RecycleBoxLayout:
+            default_size: None, dp(40)
+            default_size_hint: 1, None
+            size_hint_y: None
+            height: self.minimum_height
+            orientation: 'vertical'

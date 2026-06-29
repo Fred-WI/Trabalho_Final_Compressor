@@ -1,3 +1,11 @@
+"""Módulo de renderização de gráficos temporais de variáveis industriais.
+
+Integra as bibliotecas Kivy e Matplotlib para gerar representações visuais 
+bidimensionais a partir de dados serializados provenientes de um banco de dados. 
+Disponibiliza controles de filtragem de tempo e funcionalidades de atualização 
+periódica de interface.
+"""
+
 from kivy.app import App
 from kivy.clock import Clock
 from kivy.core.window import Window
@@ -23,6 +31,7 @@ import matplotlib; matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 
+# TODO: Modularizar as dependências condicionais do kivy-garden para evitar falhas silenciadas na renderização do layout base caso a biblioteca não esteja instalada.
 try:
     from kivy_garden.matplotlib.backend_kivyagg import FigureCanvasKivyAgg
     KIVY_GARDEN_AVAILABLE = True
@@ -34,7 +43,25 @@ from ui.custom_widgets import HoverButton, IconButton, ValueIndicator
 from ui.base_screen import BaseScreen
 
 class GraficosScreen(BaseScreen):
+    """Tela gerenciadora do ciclo de vida de renderização gráfica.
+    
+    Orquestra a integração entre o motor Kivy (interface) e o backend Matplotlib (desenho), 
+    gerenciando os estados de filtros temporais (start_time, end_time) e a reatividade 
+    automática através do event loop do Kivy.
+    """
+
     def __init__(self, **kwargs):
+        """Inicializa os contêineres e injeta os eixos (Axes) do Matplotlib.
+        
+        Args:
+            **kwargs: Argumentos passados para a classe herdada BaseScreen.
+            
+        Pre-condições:
+            Conexão com o banco de dados principal instanciada na aplicação Kivy.
+        Pós-condições:
+            Cria a infraestrutura de eixos (ax) na memória para posteriores injeções de dados.
+        """
+        # TODO: Refatorar o agrupamento de múltiplas instruções na mesma linha (uso de ';') para alinhar-se à diretriz PEP 8 de formatação de código.
         super().__init__(**kwargs); self.name = 'graficos'; self.auto_update_event = None; self.add_header('Gráficos de Tendência')
         self.start_time = None; self.end_time = None
         controls = BoxLayout(size_hint_y=None, height=sp(50), spacing=10, padding=(10,0))
@@ -53,6 +80,15 @@ class GraficosScreen(BaseScreen):
         Clock.schedule_once(self.update_graph, 1)
 
     def show_interval_picker(self, instance):
+        """Constrói e exibe a interface modal para seleção de restrições temporais.
+        
+        Args:
+            instance (Widget): O componente gráfico que emitiu o evento de chamada.
+            
+        Complexity:
+            Tempo: O(1).
+            Espaço: O(1) referências de alocação de UI temporária.
+        """
         content = GridLayout(cols=1, spacing=10, padding=10); start_default = self.start_time or datetime.now() - timedelta(hours=1); end_default = self.end_time or datetime.now()
         def create_time_input_group(title, dt_obj):
             box = BoxLayout(orientation='vertical', spacing=5, size_hint_y=None, height=sp(120)); box.add_widget(Label(text=title, font_size=sp(16), bold=True, color=CORES['primaria']))
@@ -64,29 +100,77 @@ class GraficosScreen(BaseScreen):
         self.popup = Popup(title='Selecionar Intervalo', content=content, size_hint=(0.5, 0.6), title_align='center'); self.popup.open()
 
     def set_interval(self, instance):
+        """Avalia a consistência dos dados do modal e aplica os filtros no modelo interno.
+        
+        Args:
+            instance (Widget): O botão de confirmação que emitiu o evento.
+            
+        Raises:
+            ValueError, TypeError: Capturados silenciosamente caso o usuário informe dados que 
+            inviabilizem a construção estrutural do objeto datetime.
+        """
+        # TODO: Substituir o log via console por notificação contextual na interface (ex: MDSnackbar/Popup) informando o usuário sobre tipagem de dados incorreta.
         try:
             s, e = self.start_inputs, self.end_inputs
             self.start_time = datetime(int(s['Y'].text),int(s['M'].text),int(s['D'].text),int(s['h'].text),int(s['m'].text),int(s['s'].text))
             self.end_time = datetime(int(e['Y'].text),int(e['M'].text),int(e['D'].text),int(e['h'].text),int(e['m'].text),int(e['s'].text))
             self.popup.dismiss(); self.update_graph()
         except (ValueError, TypeError) as ex: print(f"Erro ao definir data: {ex}")
-    def set_full_view(self, instance): self.start_time = None; self.end_time = None; self.update_graph()
+        
+    def set_full_view(self, instance): 
+        """Invalida os filtros de delimitação temporal.
+        
+        Args:
+            instance (Widget): A fonte emissora do evento da interface.
+        """
+        self.start_time = None; self.end_time = None; self.update_graph()
+        
     def toggle_auto_update(self, i, val):
+        """Manipula a inscrição no escalonador de eventos para renderização contínua.
+        
+        Args:
+            i (Widget): A instância do Switch acionado.
+            val (bool): O valor booleano determinando ativação (True) ou desativação (False).
+        """
+        # TODO: A hardcode intervalada de 0.5 segundos unida com I/O de banco de dados na thread principal criará engasgos severos em volumetrias grandes de dados. Considerar debouncing ou aumento paramétrico de ciclo.
         if val: self.auto_update_event = Clock.schedule_interval(self.update_graph, 0.5)
         elif self.auto_update_event: self.auto_update_event.cancel(); self.auto_update_event = None
+        
     def on_leave(self, *args):
+        """Hook do ciclo de vida que garante liberação de recursos alocados (desinscrição).
+        
+        Args:
+            *args: Argumentos repassados pelo ScreenManager do Kivy.
+        """
         if self.auto_update_event: self.auto_update_event.cancel(); self.auto_update_switch.active = False
+        
     def update_graph(self, *args):
+        """Requisita leitura ao modelo de dados persistente e recompõe o quadro visual Matplotlib.
+        
+        Consulta o banco de dados filtrando os intervalos de interesse. Opera a decomposição e 
+        conversão de strings de timestamps em objetos datetimes para eixo X, formatando a visualização.
+        
+        Args:
+            *args: Aceita eventos variáveis enviados pelo Kivy Clock.
+            
+        Pre-condições:
+            A integração KIVY_GARDEN_AVAILABLE deve ser verdadeira para prosseguir a injeção.
+            
+        Complexity:
+            Tempo: O(n), no qual n representa a quantidade agregada de pares (timestamp, leitura).
+            Espaço: O(n) resultante da expansão da tupla do cursor via zip e alocação na RAM para plotting.
+        """
         if not KIVY_GARDEN_AVAILABLE: return
         variable = self.spinner_var.text; db = App.get_running_app().db; unit = ""
         for tag_info in App.get_running_app().modbus.tags_addrs.values():
             if 'db_col' in tag_info and db.column_map.get(variable) == tag_info['db_col']: unit = tag_info.get('unit', ''); break
+        # TODO: Isolar a execução assíncrona da chamada bloqueante 'db.query_readings' (I/O). Operações deste tipo congelam o Event Loop principal inviabilizando animações/fluidity do Kivy.
         data = db.query_readings(variable, self.start_time, self.end_time); self.ax.clear()
         if data:
+            # TODO: Encapsular parsing temporal com try-except. Instabilidades no modelo de persistência (strings imprevistas quebrando o split/strptime) causam falha fatal imediata no MainLoop.
             timestamps, values = zip(*data); timestamps = [datetime.strptime(ts.split('.')[0], '%Y-%m-%d %H:%M:%S') for ts in timestamps]
             self.ax.plot(timestamps, values, color=CORES['info'], marker='o', linestyle='-', markersize=2); self.ax.xaxis.set_major_formatter(mdates.DateFormatter('%d/%m %H:%M')); self.fig.autofmt_xdate()
         else: self.ax.text(0.5, 0.5, "Nenhum dado para o intervalo", ha='center', va='center', color=CORES['texto'], fontsize=14)
         self.ax.set_title(f'Tendência de {variable}', color=CORES['primaria'], fontsize=16); self.ax.set_xlabel('Horário', color=CORES['texto']); self.ax.set_ylabel(f'{variable} [{unit}]', color=CORES['texto'])
         self.ax.tick_params(colors=CORES['texto']); self.ax.grid(True, linestyle='--', color=CORES['desabilitado'], alpha=0.5)
         self.fig.tight_layout(pad=1.5); self.graph_widget.draw()
-
