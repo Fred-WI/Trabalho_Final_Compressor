@@ -430,31 +430,35 @@ class ModbusController:
         while self.is_connected:
             start_time = time.time()
             try:
+                # with self.lock: 
+                novas_leituras = {}
+                for tag, info in self.tags_addrs.items():
+                    addr, div, val = info["address"], info.get('div', 1), 0.0
+                    try:
+                        if info['type'] == '4X':
+                            regs = self.client.read_holding_registers(addr, 1)
+                            if regs:
+                                bit_val = info.get("bit")
+                                if bit_val != "" and bit_val is not None:
+                                    val = (regs[0] >> int(bit_val)) & 1
+                                else:
+                                    val = regs[0]
+                        
+                        elif info['type'] == 'FP':
+                            regs = self.client.read_holding_registers(addr, 2)
+                            if regs:
+                                val = self._float32_from_registers(regs)
+                        
+                        # self.tags[tag] = val / div if div != 0 else val                        
+                    # TODO: Substituir o bloco catch-all `except Exception: pass` pela 
+                    # captura de exceções específicas ligadas ao Modbus/Network para evitar
+                    # o mascaramento furtivo (silencing) de erros estruturais durante o loop.
+                        novas_leituras[tag] = val / div if div != 0 else val
+                    except Exception as e:
+                        pass
+                
                 with self.lock:
-                    for tag, info in self.tags_addrs.items():
-                        addr, div, val = info["address"], info.get('div', 1), 0.0
-                        try:
-                            if info['type'] == '4X':
-                                regs = self.client.read_holding_registers(addr, 1)
-                                if regs:
-                                    bit_val = info.get("bit")
-                                    if bit_val != "" and bit_val is not None:
-                                        val = (regs[0] >> int(bit_val)) & 1
-                                    else:
-                                        val = regs[0]
-                            
-                            elif info['type'] == 'FP':
-                                regs = self.client.read_holding_registers(addr, 2)
-                                if regs:
-                                    val = self._float32_from_registers(regs)
-                            
-                            self.tags[tag] = val / div if div != 0 else val
-                            
-                        # TODO: Substituir o bloco catch-all `except Exception: pass` pela 
-                        # captura de exceções específicas ligadas ao Modbus/Network para evitar
-                        # o mascaramento furtivo (silencing) de erros estruturais durante o loop.
-                        except Exception as e:
-                            pass
+                    self.tags.update(novas_leituras)
 
                 self.app.db.log_reading(self.tags, self.tags_addrs)
                 elapsed = time.time() - start_time
