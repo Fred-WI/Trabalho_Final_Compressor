@@ -247,6 +247,7 @@ class ModbusController:
                 addr_indica = self.tags_addrs["sys.indica_driver"]["address"]
                 tipo_partida_regs = self.client.read_holding_registers(addr_indica, 1)
                 
+                
                 if not tipo_partida_regs:
                     self.app.db.log_event('erro', 'Falha ao ler tipo de partida')
                     return False
@@ -347,10 +348,11 @@ class ModbusController:
         
         try:
             with self.lock:
-                bit_val = tag_info.get('bit')
+                bit_val = tag_info.get('bit', None)
                 if bit_val != "" and bit_val is not None:
                     bit = int(bit_val)
-                    regs = self.client.read_holding_registers(address, 1)
+                    regs = self.client.read_holding_registers(712, 1)
+                    # print(regs)
                     if regs:
                         reg_val = regs[0]
                         new_val = reg_val | (1 << bit) if value == 1 else reg_val & ~(1 << bit)
@@ -364,7 +366,7 @@ class ModbusController:
                     self.client.write_single_register(address, int(value * div))
             
                 self.app.db.log_event('comando', f'[COMPRESSOR] Tag {tag_name} escrita com valor {value}')
-                return True
+                # return True
         except (ConnectionException, AttributeError) as e:
             logger.error(f"Erro de escrita Modbus: {e}. Desconectando...")
             self.is_connected = False
@@ -372,7 +374,8 @@ class ModbusController:
         except Exception as e:
             logger.error(f"Erro de escrita Modbus: {e}")
             self.app.db.log_event('erro', f"Falha de escrita em {tag_name}")
-        return False
+        # return False
+        pass
 
     def read_tag(self, tag):
         """Obtém o valor contido na representação local de memória da aplicação."""
@@ -425,42 +428,47 @@ class ModbusController:
         Complexidade:
             Tempo: O(N) | Espaço: O(1) de alocação de memória por ciclo.
         """
-        tickrate = self.configs_map["network"].get(self.mode, self.configs_map["network"]["simulation"]).get("tickrate", 1.0)
+        tickrate = 5
+        # tickrate = self.configs_map["network"].get(self.mode, self.configs_map["network"]["simulation"]).get("tickrate", 1.0)
 
         while self.is_connected:
             start_time = time.time()
+            print("start")
             try:
-                # with self.lock: 
-                novas_leituras = {}
-                for tag, info in self.tags_addrs.items():
-                    addr, div, val = info["address"], info.get('div', 1), 0.0
-                    try:
-                        if info['type'] == '4X':
-                            regs = self.client.read_holding_registers(addr, 1)
-                            if regs:
-                                bit_val = info.get("bit")
-                                if bit_val != "" and bit_val is not None:
-                                    val = (regs[0] >> int(bit_val)) & 1
-                                else:
-                                    val = regs[0]
-                        
-                        elif info['type'] == 'FP':
-                            regs = self.client.read_holding_registers(addr, 2)
-                            if regs:
-                                val = self._float32_from_registers(regs)
-                        
-                        # self.tags[tag] = val / div if div != 0 else val                        
-                    # TODO: Substituir o bloco catch-all `except Exception: pass` pela 
-                    # captura de exceções específicas ligadas ao Modbus/Network para evitar
-                    # o mascaramento furtivo (silencing) de erros estruturais durante o loop.
-                        novas_leituras[tag] = val / div if div != 0 else val
-                    except Exception as e:
-                        pass
                 
+                # with self.lock: 
                 with self.lock:
+                    novas_leituras = {}
+                    for tag, info in self.tags_addrs.items():
+                        addr, div, val = info["address"], info.get('div', 1), 0.0
+                        try:
+                            if info['type'] == '4X':
+                                regs = self.client.read_holding_registers(addr, 1)
+                                if regs:
+                                    bit_val = info.get("bit")
+                                    if bit_val != "" and bit_val is not None:
+                                        val = (regs[0] >> int(bit_val)) & 1
+                                    else:
+                                        val = regs[0]
+                            
+                            elif info['type'] == 'FP':
+                                regs = self.client.read_holding_registers(addr, 2)
+                                if regs:
+                                    val = self._float32_from_registers(regs)
+                            
+                            # self.tags[tag] = val / div if div != 0 else val                        
+                        # TODO: Substituir o bloco catch-all `except Exception: pass` pela 
+                        # captura de exceções específicas ligadas ao Modbus/Network para evitar
+                        # o mascaramento furtivo (silencing) de erros estruturais durante o loop.
+                            novas_leituras[tag] = val / div if div != 0 else val
+                        except Exception as e:
+                            pass
+                    
                     self.tags.update(novas_leituras)
 
                 self.app.db.log_reading(self.tags, self.tags_addrs)
+                    
+                print("end")
                 elapsed = time.time() - start_time
                 if elapsed < tickrate: time.sleep(tickrate - elapsed)
             except (ConnectionException, AttributeError) as e: 
