@@ -96,47 +96,48 @@
             text_color: 1, 1, 1, 1
 
         # --- BOTÃO DA TABELA ---
-        MDButton:
+        Button:
             id: drop_table
-            style: "tonal"
-            pos_hint: {'center_y': 0.5}
+            text: text_table.text
+            size_hint_x: None
+            width: dp(150)
+            background_color: 0.82, 0.82, 0.86, 1
+            color: 0, 0, 0, 1
             on_release: root.parent_screen.menu_tabelas.open()
-            
-            MDButtonText:
-                id: text_table  
-                text: 'readings'
-                theme_text_color: "Custom"
-                text_color: 0, 0, 0, 1  
+
+        Label:
+            id: text_table
+            text: 'readings'
+            size_hint_x: None
+            width: 0
+            opacity: 0
 
         # --- BOTÃO DA TAG/EVENTO ---
-        MDButton:
+        Button:
             id: drop_tag
-            style: "tonal"
-            pos_hint: {'center_y': 0.5}
+            text: text_tag.text
+            size_hint_x: None
+            width: dp(190)
+            background_color: 0.82, 0.82, 0.86, 1
+            color: 0, 0, 0, 1
             on_release: root.parent_screen.menu_tags.open()
-            
-            MDButtonText:
-                id: text_tag  
-                text: 'Todas as Tags'
-                theme_text_color: "Custom"
-                text_color: 0, 0, 0, 1  
+
+        Label:
+            id: text_tag
+            text: 'Todas as Tags'
+            size_hint_x: None
+            width: 0
+            opacity: 0
 
         Widget: # Empurra o botão de exportar para o final
 
-        MDButton:
-            style: "filled"
-            md_bg_color: 0, 0.5, 0.2, 1  
-            pos_hint: {'center_y': 0.5}
+        Button:
+            text: 'Exportar CSV'
+            size_hint_x: None
+            width: dp(150)
+            background_color: 0, 0.5, 0.2, 1
+            color: 1, 1, 1, 1
             on_release: root.parent_screen.exportar_csv()
-            MDButtonIcon:
-                icon: "file-excel"
-                theme_icon_color: "Custom"
-                icon_color: 1, 1, 1, 1
-            MDButtonText:
-                text: "Exportar CSV"
-                theme_text_color: "Custom"
-                text_color: 1, 1, 1, 1
-
     # ===================================================
     # LINHA 2: Data de Início
     # ===================================================
@@ -195,15 +196,13 @@
 
         Widget: # Espaçador
 
-        MDButton:
-            style: "text"
-            pos_hint: {'center_y': 0.5}
+        Button:
+            text: 'Limpar Filtros'
+            size_hint_x: None
+            width: dp(140)
+            background_color: 0.55, 0.10, 0.10, 1
+            color: 1, 1, 1, 1
             on_release: root.parent_screen.limpar_filtros()
-            MDButtonText:
-                text: "Limpar Filtros"
-                theme_text_color: "Custom"
-                text_color: app.theme_cls.errorColor
-
     # ===================================================
     # LINHA 3: Data de Fim
     # ===================================================
@@ -261,13 +260,13 @@
 
         Widget: # Espaçador
 
-        MDButton:
-            style: "filled"
-            pos_hint: {'center_y': 0.5}
+        Button:
+            text: 'Aplicar Filtros'
+            size_hint_x: None
+            width: dp(150)
+            background_color: 0.22, 0.22, 0.28, 1
+            color: 1, 1, 1, 1
             on_release: root.parent_screen.aplicar_filtros()
-            MDButtonText:
-                text: "Aplicar Filtros"
-
     # ===================================================
     # CABEÇALHO DA TABELA
     # ===================================================
@@ -276,7 +275,7 @@
         size_hint_y: None
         height: dp(40)
         padding: [10, 0, 10, 0]
-        md_bg_color: app.theme_cls.primaryContainerColor 
+        md_bg_color: 0.22, 0.22, 0.28, 1 
 
         MDLabel:
             id: header_1
@@ -284,28 +283,28 @@
             bold: True
             size_hint_x: 0.15
             theme_text_color: "Custom"
-            text_color: app.theme_cls.onPrimaryContainerColor  
+            text_color: 1, 1, 1, 1  
         MDLabel:
             id: header_2
             text: "Data e Hora"
             bold: True
             size_hint_x: 0.35
             theme_text_color: "Custom"
-            text_color:app.theme_cls.onPrimaryContainerColor  
+            text_color:1, 1, 1, 1  
         MDLabel:
             id: header_3
             text: "Variável (Tag)"
             bold: True
             size_hint_x: 0.3
             theme_text_color: "Custom"
-            text_color:app.theme_cls.onPrimaryContainerColor  
+            text_color:1, 1, 1, 1  
         MDLabel:
             id: header_4
             text: "Valor Salvo"
             bold: True
             size_hint_x: 0.2
             theme_text_color: "Custom"
-            text_color:app.theme_cls.onPrimaryContainerColor  
+            text_color:1, 1, 1, 1  
 
     # ===================================================
     # DADOS DA TABELA
