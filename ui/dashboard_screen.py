@@ -414,7 +414,7 @@ class DashboardScreen(Screen):
 
             # NOVO
             self.spinner_partida.disabled = True
-            self.frequency_slider.disabled = True
+            self.spinner_partida.disabled = True
 
             self.motor_status_label.text = f'MOTOR LIGADO ({self.spinner_partida.text})'
             self.motor_status_label.color = CORES['sucesso']
