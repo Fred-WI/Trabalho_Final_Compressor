@@ -15,26 +15,53 @@ from kivy.metrics import dp
 from kivy.factory import Factory
 from kivy.properties import StringProperty
 from kivymd.uix.menu import MDDropdownMenu
-from kivymd.uix.list import OneLineListItem
-from kivymd.uix.snackbar import Snackbar
+from kivymd.uix.list import MDListItem, MDListItemHeadlineText
+from kivymd.uix.snackbar import MDSnackbar, MDSnackbarText
 
 Builder.load_file('ui/bd_screen.kv')
 from ui.base_screen import BaseScreen
 from config import CORES
 
 
-class MenuCustomItem(OneLineListItem):
-    """Item de menu compatível com KivyMD 1.2.0."""
-
-    text = StringProperty("")
+class MenuCustomItem(MDListItem):
+    """Item customizado para menus de seleção da interface gráfica.
+    
+    Estende o comportamento básico do MDListItem para contornar problemas
+    de concorrência no ciclo de renderização e injeção de propriedades textuais 
+    recorrentes do motor KivyMD 2.0 em plataformas desktop.
+    """
+    
+    text = StringProperty()
 
     def __init__(self, **kwargs):
+        """Inicializa a estrutura interna do item customizado.
+        
+        Instancia de forma síncrona o label de texto antes de invocar a 
+        inicialização da classe base, assegurando o correto sequenciamento 
+        na árvore de widgets interna do KivyMD.
+        
+        Args:
+            **kwargs: Dicionário de argumentos nomeados destinados à classe base MDListItem.
+        """
+        self.lbl = MDListItemHeadlineText(
+            theme_text_color="Custom",
+            text_color=CORES["texto"]
+        )
         super().__init__(**kwargs)
-        self.theme_text_color = "Custom"
-        self.text_color = CORES["texto"]
+        self.add_widget(self.lbl)
 
-
-Factory.register("MenuCustomItem", cls=MenuCustomItem)
+    def on_text(self, instance, value):
+        """Garante a sincronização de dados reativos.
+        
+        Intercepta alterações na propriedade 'text' do widget pai e atualiza 
+        dinamicamente o label interno encapsulado.
+        
+        Args:
+            instance (MenuCustomItem): A instância do próprio widget emissor do evento.
+            value (str): O novo valor textual associado à propriedade.
+        """
+        if hasattr(self, 'lbl'):
+            self.lbl.text = value
 
 
 class BDScreen(BaseScreen):
@@ -321,8 +348,17 @@ class BDScreen(BaseScreen):
             self.mostrar_mensagem("Erro ao exportar o arquivo. Verifique o terminal.")
 
     def mostrar_mensagem(self, texto):
-        """Exibe mensagem curta compatível com KivyMD 1.2.0."""
-        Snackbar(
-            text=texto,
-            duration=3
+        """Gera e exibe caixas flutuantes de feedback visual MDSnackbar.
+        
+        Garante a correta renderização de alertas e mensagens ao usuário de modo 
+        assíncrono e agnóstico ao sistema operacional (Windows/Linux/Android).
+        
+        Args:
+            texto (str): O conteúdo informacional a ser veiculado na mensagem.
+        """
+        MDSnackbar(
+            MDSnackbarText(text=texto),
+            y=dp(24),
+            pos_hint={"center_x": 0.5},
+            size_hint_x=0.8,
         ).open()
