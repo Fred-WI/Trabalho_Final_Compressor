@@ -316,14 +316,8 @@ class DashboardScreen(Screen):
 
         except Exception as e:
             app.db.log_event('erro', f'Erro ao configurar partida {text}: {e}')
-
-
-    # def seleciona_aceleracao()
-    # def seleciona_desaceleracao()
-    # def seleciona_frequencia_inversor()
         
-        
-            
+                
     def on_frequency_change(self, instance, value):
         """Chamado quando o valor do slider muda.
 
@@ -420,7 +414,7 @@ class DashboardScreen(Screen):
 
             # NOVO
             self.spinner_partida.disabled = True
-            # self.spinner_motor.disabled = True
+            self.frequency_slider.disabled = True
 
             self.motor_status_label.text = f'MOTOR LIGADO ({self.spinner_partida.text})'
             self.motor_status_label.color = CORES['sucesso']
@@ -432,7 +426,7 @@ class DashboardScreen(Screen):
 
             # NOVO
             self.spinner_partida.disabled = False
-            # self.spinner_motor.disabled = False
+            self.frequency_slider.disabled = False
 
             self.motor_status_label.text = 'MOTOR DESLIGADO'
             self.motor_status_label.color = CORES['erro']
