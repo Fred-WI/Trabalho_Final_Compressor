@@ -196,7 +196,7 @@ class DashboardScreen(Screen):
                          size=lambda i, v: setattr(self.right_bg, 'size', v))
 
         right_panel.add_widget(Label(
-            text="Controle do Motor", font_size=sp(20), bold=True, color=CORES['primaria'], size_hint_y=None, height=sp(30)
+            text="Controle do Motor", font_size=sp(20), bold=True, color=(1, 1, 1, 1), size_hint_y=None, height=sp(30)
         ))
 
         control_grid = GridLayout(cols=2, rows=1, spacing=10, size_hint_y=None, height=sp(50))
