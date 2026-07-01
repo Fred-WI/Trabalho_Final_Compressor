@@ -3,7 +3,7 @@
     "real": {
       "ip": "10.15.30.182",
       "port": 502,
-      "tickrate": 1.0,
+      "tickrate": 5.0,
       "timeout": 3
     },
     "simulation": {
