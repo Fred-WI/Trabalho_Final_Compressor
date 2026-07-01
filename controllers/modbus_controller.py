@@ -428,8 +428,8 @@ class ModbusController:
         Complexidade:
             Tempo: O(N) | Espaço: O(1) de alocação de memória por ciclo.
         """
-        tickrate = 5
-        # tickrate = self.configs_map["network"].get(self.mode, self.configs_map["network"]["simulation"]).get("tickrate", 1.0)
+        # tickrate = 5
+        tickrate = self.configs_map["network"].get(self.mode, self.configs_map["network"]["simulation"]).get("tickrate", 1.0)
 
         while self.is_connected:
             start_time = time.time()
