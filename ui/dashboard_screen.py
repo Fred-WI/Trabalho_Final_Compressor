@@ -374,7 +374,7 @@ class DashboardScreen(Screen):
         self.connection_status.color = CORES['sucesso']
 
         pressao = modbus.read_tag("co.pressao")
-        vazao = modbus.read_tag("co.fit02")
+        vazao = modbus.read_tag("co.fit03")
 
         self.pressao_label.text = f"{pressao:.2f} bar"
         self.vazao_label.text = f"{vazao:.2f} L/min"
@@ -392,7 +392,7 @@ class DashboardScreen(Screen):
         # Atualiza indicadores
         for tag, widget in self.indicators.items():
             if tag == 'vazao_total':
-                widget.current_val = (modbus.read_tag('co.fit02'))
+                widget.current_val = (modbus.read_tag('co.fit03'))
             else:
                 widget.current_val = modbus.read_tag(tag)
         
@@ -414,7 +414,7 @@ class DashboardScreen(Screen):
 
             # NOVO
             self.spinner_partida.disabled = True
-            self.spinner_partida.disabled = True
+            self.frequency_slider.disabled = True
 
             self.motor_status_label.text = f'MOTOR LIGADO ({self.spinner_partida.text})'
             self.motor_status_label.color = CORES['sucesso']

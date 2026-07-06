@@ -65,19 +65,19 @@ class GraficosScreen(BaseScreen):
         super().__init__(**kwargs); self.name = 'graficos'; self.auto_update_event = None; self.add_header('Gráficos de Tendência')
         self.start_time = None; self.end_time = None
         controls = BoxLayout(size_hint_y=None, height=sp(50), spacing=10, padding=(10,0))
-        self.spinner_var = Spinner(text='Pressão', values=list(App.get_running_app().db.column_map.keys()), background_color=CORES['primaria'])
+        self.spinner_var = Spinner(text='Escolha', values=list(App.get_running_app().db.column_map.keys()), background_color=CORES['primaria'])
+        self.spinner_var.bind(text=lambda *args: self.update_graph())
         btn_interval = HoverButton(text='Selecionar Intervalo', on_press=self.show_interval_picker)
         btn_full_view = HoverButton(text='Visão Completa', on_press=self.set_full_view, background_color_normal=CORES['info'])
-        auto_update_box = BoxLayout(orientation='horizontal', size_hint_x=None, width=sp(250)); auto_update_box.add_widget(Label(text='Atualizar (0.5s):'))
-        self.auto_update_switch = Switch(active=False); self.auto_update_switch.bind(active=self.toggle_auto_update); auto_update_box.add_widget(self.auto_update_switch)
-        controls.add_widget(Label(text='Variável:')); controls.add_widget(self.spinner_var); controls.add_widget(btn_interval); controls.add_widget(btn_full_view); controls.add_widget(auto_update_box)
+        controls.add_widget(Label(text='Variável:')); controls.add_widget(self.spinner_var); controls.add_widget(btn_interval); controls.add_widget(btn_full_view)
         self.root_layout.add_widget(controls)
         self.graph_container = BoxLayout(padding=10); self.root_layout.add_widget(self.graph_container)
         if KIVY_GARDEN_AVAILABLE:
             plt.style.use('dark_background'); self.fig, self.ax = plt.subplots(); self.fig.set_facecolor(CORES['fundo']); self.ax.set_facecolor(CORES['fundo_claro'])
             self.graph_widget = FigureCanvasKivyAgg(self.fig); self.graph_container.add_widget(self.graph_widget)
         else: self.graph_container.add_widget(Label(text="[b]Erro:[/b] 'kivy-garden.matplotlib' não encontrada.", markup=True, color=CORES['erro']))
-        Clock.schedule_once(self.update_graph, 1)
+        Clock.schedule_once(lambda dt: self.update_graph(), 0)
+        self.auto_update_event = Clock.schedule_interval(self.update_graph, 0.1)
 
     def show_interval_picker(self, instance):
         """Constrói e exibe a interface modal para seleção de restrições temporais.
@@ -137,13 +137,10 @@ class GraficosScreen(BaseScreen):
         elif self.auto_update_event: self.auto_update_event.cancel(); self.auto_update_event = None
         
     def on_leave(self, *args):
-        """Hook do ciclo de vida que garante liberação de recursos alocados (desinscrição).
-        
-        Args:
-            *args: Argumentos repassados pelo ScreenManager do Kivy.
-        """
-        if self.auto_update_event: self.auto_update_event.cancel(); self.auto_update_switch.active = False
-        
+     if self.auto_update_event:
+        self.auto_update_event.cancel()
+        self.auto_update_event = None
+
     def update_graph(self, *args):
         """Requisita leitura ao modelo de dados persistente e recompõe o quadro visual Matplotlib.
         
@@ -171,6 +168,6 @@ class GraficosScreen(BaseScreen):
             timestamps, values = zip(*data); timestamps = [datetime.strptime(ts.split('.')[0], '%Y-%m-%d %H:%M:%S') for ts in timestamps]
             self.ax.plot(timestamps, values, color=CORES['info'], marker='o', linestyle='-', markersize=2); self.ax.xaxis.set_major_formatter(mdates.DateFormatter('%d/%m %H:%M')); self.fig.autofmt_xdate()
         else: self.ax.text(0.5, 0.5, "Nenhum dado para o intervalo", ha='center', va='center', color=CORES['texto'], fontsize=14)
-        self.ax.set_title(f'Tendência de {variable}', color=CORES['primaria'], fontsize=16); self.ax.set_xlabel('Horário', color=CORES['texto']); self.ax.set_ylabel(f'{variable} [{unit}]', color=CORES['texto'])
+        self.ax.set_title(f'Tendência de {variable}', color=CORES['primaria'], fontsize=16); self.ax.set_xlabel('Horário', color=CORES['texto']); self.ax.set_ylabel(f'{variable}', color=CORES['texto'])
         self.ax.tick_params(colors=CORES['texto']); self.ax.grid(True, linestyle='--', color=CORES['desabilitado'], alpha=0.5)
         self.fig.tight_layout(pad=1.5); self.graph_widget.draw()

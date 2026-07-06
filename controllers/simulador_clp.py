@@ -327,9 +327,9 @@ class CompressorSimulator:
 
             vazao_calculada = pressao_atual * valvulas_abertas * 2.5
 
-            vazao_fit02 = vazao_calculada + random.uniform(-0.2, 0.2) if valvulas_abertas > 0 else 0.0
+            vazao_fit03 = vazao_calculada + random.uniform(-0.2, 0.2) if valvulas_abertas > 0 else 0.0
 
-            self._write_tag("co.fit02", max(0.0, vazao_fit02))
+            self._write_tag("co.fit03", max(0.0, vazao_fit03))
 
             pot_aparente = (1.732 * 220.0 * corrente_real) / 1000.0
 
