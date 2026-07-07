@@ -30,6 +30,7 @@ import os
 import matplotlib; matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
+import numpy as np
 
 # TODO: Modularizar as dependências condicionais do kivy-garden para evitar falhas silenciadas na renderização do layout base caso a biblioteca não esteja instalada.
 try:
@@ -164,10 +165,30 @@ class GraficosScreen(BaseScreen):
         # TODO: Isolar a execução assíncrona da chamada bloqueante 'db.query_readings' (I/O). Operações deste tipo congelam o Event Loop principal inviabilizando animações/fluidity do Kivy.
         data = db.query_readings(variable, self.start_time, self.end_time); self.ax.clear()
         if data:
-            # TODO: Encapsular parsing temporal com try-except. Instabilidades no modelo de persistência (strings imprevistas quebrando o split/strptime) causam falha fatal imediata no MainLoop.
-            timestamps, values = zip(*data); timestamps = [datetime.strptime(ts.split('.')[0], '%Y-%m-%d %H:%M:%S') for ts in timestamps]
-            self.ax.plot(timestamps, values, color=CORES['info'], marker='o', linestyle='-', markersize=2); self.ax.xaxis.set_major_formatter(mdates.DateFormatter('%d/%m %H:%M')); self.fig.autofmt_xdate()
-        else: self.ax.text(0.5, 0.5, "Nenhum dado para o intervalo", ha='center', va='center', color=CORES['texto'], fontsize=14)
+            timestamps, values = zip(*data)
+            timestamps = [datetime.strptime(ts.split('.')[0], '%Y-%m-%d %H:%M:%S') for ts in timestamps]
+            
+            # Plotagem dos dados brutos originais
+            self.ax.plot(timestamps, values, color=CORES['info'], marker='o', linestyle='-', markersize=2, label='Leituras')
+            
+            # Converte as datas (datetime) para valores numéricos contínuos
+            x_num = mdates.date2num(timestamps)
+            
+            if len(x_num) > 1:
+                # Calcula os coeficientes da reta (grau 1) usando o método dos mínimos quadrados
+                coeficientes = np.polyfit(x_num, values, 1)
+                polinomio = np.poly1d(coeficientes)
+                
+                # Plota a linha de tendência baseada na equação calculada
+                self.ax.plot(timestamps, polinomio(x_num), color='red', linestyle='--', linewidth=2, label='Tendência (Linear)')
+                
+                # Adiciona a legenda para diferenciar as linhas
+                self.ax.legend(loc='best', facecolor=CORES['fundo_claro'], labelcolor=CORES['texto'])
+
+            self.ax.xaxis.set_major_formatter(mdates.DateFormatter('%d/%m %H:%M'))
+            self.fig.autofmt_xdate()
+        else: 
+            self.ax.text(0.5, 0.5, "Nenhum dado para o intervalo", ha='center', va='center', color=CORES['texto'], fontsize=14)
         self.ax.set_title(f'Tendência de {variable}', color=CORES['primaria'], fontsize=16); self.ax.set_xlabel('Horário', color=CORES['texto']); self.ax.set_ylabel(f'{variable}', color=CORES['texto'])
         self.ax.tick_params(colors=CORES['texto']); self.ax.grid(True, linestyle='--', color=CORES['desabilitado'], alpha=0.5)
         self.fig.tight_layout(pad=1.5); self.graph_widget.draw()
