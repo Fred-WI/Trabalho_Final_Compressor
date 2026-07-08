@@ -78,7 +78,7 @@ class GraficosScreen(BaseScreen):
             self.graph_widget = FigureCanvasKivyAgg(self.fig); self.graph_container.add_widget(self.graph_widget)
         else: self.graph_container.add_widget(Label(text="[b]Erro:[/b] 'kivy-garden.matplotlib' não encontrada.", markup=True, color=CORES['erro']))
         Clock.schedule_once(lambda dt: self.update_graph(), 0)
-        self.auto_update_event = Clock.schedule_interval(self.update_graph, 0.1)
+        self.auto_update_event = Clock.schedule_interval(self.update_graph, 1)
 
     def show_interval_picker(self, instance):
         """Constrói e exibe a interface modal para seleção de restrições temporais.
@@ -191,4 +191,4 @@ class GraficosScreen(BaseScreen):
             self.ax.text(0.5, 0.5, "Nenhum dado para o intervalo", ha='center', va='center', color=CORES['texto'], fontsize=14)
         self.ax.set_title(f'Tendência de {variable}', color=CORES['primaria'], fontsize=16); self.ax.set_xlabel('Horário', color=CORES['texto']); self.ax.set_ylabel(f'{variable}', color=CORES['texto'])
         self.ax.tick_params(colors=CORES['texto']); self.ax.grid(True, linestyle='--', color=CORES['desabilitado'], alpha=0.5)
-        self.fig.tight_layout(pad=1.5); self.graph_widget.draw()
+        self.fig.tight_layout(pad=1.5); self.graph_widget.draw_idle()
