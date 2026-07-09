@@ -187,9 +187,9 @@
         "bit": "",
         "tag": "co.fit02",
         "div": 1,
-        "descricao": "FIT-02 (L/min)",
+        "descricao": "FIT-02 (Nm³/min)",
         "rw": "R",
-        "unit": "L/min",
+        "unit": "Nm³/min",
         "category": "process",
         "save_history": true
     },
@@ -199,9 +199,9 @@
         "bit": "",
         "tag": "co.fit03",
         "div": 1,
-        "descricao": "FIT-03 (L/min)",
+        "descricao": "FIT-03 (Nm³/min)",
         "rw": "R",
-        "unit": "L/min",
+        "unit": "Nm³/min",
         "category": "process",
         "save_history": true
     },

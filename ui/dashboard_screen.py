@@ -374,10 +374,10 @@ class DashboardScreen(Screen):
         self.connection_status.color = CORES['sucesso']
 
         pressao = modbus.read_tag("co.pressao")
-        vazao = modbus.read_tag("co.fit03")
+        vazao = modbus.read_tag("co.fit02")
 
-        self.pressao_label.text = f"{pressao:.2f} bar"
-        self.vazao_label.text = f"{vazao:.2f} L/min"
+        self.pressao_label.text = f"{pressao:.2f} "
+        self.vazao_label.text = f"{vazao:.2f} "
 
         for valve_id, btn in self.valve_buttons.items():
             state = modbus.read_tag(f'co.xv{valve_id}') == 1
@@ -392,7 +392,7 @@ class DashboardScreen(Screen):
         # Atualiza indicadores
         for tag, widget in self.indicators.items():
             if tag == 'vazao_total':
-                widget.current_val = (modbus.read_tag('co.fit03'))
+                widget.current_val = (modbus.read_tag('co.fit02'))
             else:
                 widget.current_val = modbus.read_tag(tag)
         
